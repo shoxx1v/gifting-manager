@@ -115,6 +115,7 @@ export default function AuditLogPage() {
 
     // インフルエンサーのログ
     influencers?.forEach(i => {
+      const displayName = i.insta_name || i.tiktok_name || '不明';
       logs.push({
         id: `inf-${i.id}-create`,
         type: 'create',
@@ -123,7 +124,7 @@ export default function AuditLogPage() {
         user_id: '',
         user_email: '',
         user_name: 'システム',
-        details: `インフルエンサーを登録: @${i.insta_name}`,
+        details: `インフルエンサーを登録: @${displayName}`,
         timestamp: i.created_at,
       });
     });

@@ -750,7 +750,7 @@ export default function ImportPage() {
                 <tbody className="divide-y divide-gray-100">
                   {previewData.map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-medium">@{row.insta_name}</td>
+                      <td className="px-3 py-2 font-medium">@{row.insta_name || row.tiktok_name || '不明'}</td>
                       <td className="px-3 py-2">{row.brand || '-'}</td>
                       <td className="px-3 py-2">{row.item_code || '-'}</td>
                       <td className="px-3 py-2">

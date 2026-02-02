@@ -169,7 +169,7 @@ export default function ReportExportPage() {
     ];
 
     const rows = filteredCampaigns.map(c => [
-      c.influencer?.insta_name || '',
+      c.influencer?.insta_name || c.influencer?.tiktok_name || '',
       c.brand || '',
       c.item_code || '',
       c.offered_amount || 0,
@@ -300,7 +300,7 @@ export default function ReportExportPage() {
       <tbody>
         ${filteredCampaigns.map(c => `
           <tr>
-            <td>@${c.influencer?.insta_name || '不明'}</td>
+            <td>@${c.influencer?.insta_name || c.influencer?.tiktok_name || '不明'}</td>
             <td>${c.brand || '-'}</td>
             <td>¥${(c.agreed_amount || 0).toLocaleString()}</td>
             <td class="status-${c.status}">${c.status === 'agree' ? '合意' : c.status === 'disagree' ? '不合意' : '保留'}</td>
@@ -567,7 +567,7 @@ export default function ReportExportPage() {
                           <tr key={c.id} className="border-b border-gray-100 dark:border-gray-800">
                             <td className="py-3 px-2">
                               <span className="font-medium text-gray-900 dark:text-white">
-                                @{c.influencer?.insta_name || '不明'}
+                                @{c.influencer?.insta_name || c.influencer?.tiktok_name || '不明'}
                               </span>
                             </td>
                             <td className="py-3 px-2 text-gray-600 dark:text-gray-400">{c.brand || '-'}</td>

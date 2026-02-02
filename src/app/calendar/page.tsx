@@ -78,16 +78,17 @@ export default function CalendarPage() {
     const eventList: CalendarEvent[] = [];
 
     campaigns.forEach(c => {
+      const displayName = c.influencer?.insta_name || c.influencer?.tiktok_name || '不明';
       // 投稿予定日
       if (c.desired_post_date) {
         eventList.push({
           id: `post-${c.id}`,
-          title: `投稿予定: @${c.influencer?.insta_name || '不明'}`,
+          title: `投稿予定: @${displayName}`,
           start: parseISO(c.desired_post_date),
           end: parseISO(c.desired_post_date),
           type: 'post',
           campaign_id: c.id,
-          influencer_name: c.influencer?.insta_name,
+          influencer_name: displayName,
           color: c.post_date ? '#22c55e' : '#3b82f6', // 投稿済みなら緑、未投稿なら青
         });
       }
@@ -96,12 +97,12 @@ export default function CalendarPage() {
       if (c.post_date && c.post_date !== c.desired_post_date) {
         eventList.push({
           id: `actual-${c.id}`,
-          title: `投稿完了: @${c.influencer?.insta_name || '不明'}`,
+          title: `投稿完了: @${displayName}`,
           start: parseISO(c.post_date),
           end: parseISO(c.post_date),
           type: 'post',
           campaign_id: c.id,
-          influencer_name: c.influencer?.insta_name,
+          influencer_name: displayName,
           color: '#22c55e',
         });
       }
@@ -123,12 +124,12 @@ export default function CalendarPage() {
       if (c.agreed_date) {
         eventList.push({
           id: `agreed-${c.id}`,
-          title: `合意: @${c.influencer?.insta_name || '不明'}`,
+          title: `合意: @${displayName}`,
           start: parseISO(c.agreed_date),
           end: parseISO(c.agreed_date),
           type: 'deadline',
           campaign_id: c.id,
-          influencer_name: c.influencer?.insta_name,
+          influencer_name: displayName,
           color: '#8b5cf6',
         });
       }

@@ -453,11 +453,12 @@ export default function AIInsightsPage() {
     data.forEach(c => {
       if (c.influencer) {
         const key = c.influencer_id;
-        const current = topInfluencers.get(key) || { likes: 0, cost: 0, name: c.influencer.insta_name };
+        const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
+        const current = topInfluencers.get(key) || { likes: 0, cost: 0, name: displayName };
         topInfluencers.set(key, {
           likes: current.likes + (c.likes || 0),
           cost: current.cost + (c.agreed_amount || 0),
-          name: c.influencer.insta_name,
+          name: displayName,
         });
       }
     });
@@ -511,12 +512,13 @@ export default function AIInsightsPage() {
     data.forEach(c => {
       if (c.influencer) {
         const key = c.influencer_id;
-        const current = influencerStats.get(key) || { likes: 0, cost: 0, campaigns: 0, name: c.influencer.insta_name };
+        const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
+        const current = influencerStats.get(key) || { likes: 0, cost: 0, campaigns: 0, name: displayName };
         influencerStats.set(key, {
           likes: current.likes + (c.likes || 0),
           cost: current.cost + (c.agreed_amount || 0),
           campaigns: current.campaigns + 1,
-          name: c.influencer.insta_name,
+          name: displayName,
         });
       }
     });
@@ -611,12 +613,13 @@ export default function AIInsightsPage() {
 
     data.forEach(c => {
       if (!c.influencer) return;
+      const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
 
       if (c.agreed_amount && c.agreed_amount > avgCost + 2 * costStdDev) {
         anomalies.push({
           type: 'high_cost',
           campaignId: c.id,
-          influencer: c.influencer.insta_name,
+          influencer: displayName,
           description: `案件費用(¥${c.agreed_amount.toLocaleString()})が平均より大幅に高いです`,
           severity: c.agreed_amount > avgCost + 3 * costStdDev ? 'critical' : 'warning',
         });
@@ -626,7 +629,7 @@ export default function AIInsightsPage() {
         anomalies.push({
           type: 'low_engagement',
           campaignId: c.id,
-          influencer: c.influencer.insta_name,
+          influencer: displayName,
           description: `いいね数(${c.likes.toLocaleString()})が平均より大幅に低いです`,
           severity: c.likes < avgLikes - 3 * likesStdDev ? 'critical' : 'warning',
         });
@@ -641,7 +644,7 @@ export default function AIInsightsPage() {
           anomalies.push({
             type: 'delayed_post',
             campaignId: c.id,
-            influencer: c.influencer.insta_name,
+            influencer: displayName,
             description: `投稿予定日から${daysLate}日経過していますが、投稿が確認されていません`,
             severity: daysLate > 14 ? 'critical' : 'warning',
           });

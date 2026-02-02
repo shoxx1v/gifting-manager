@@ -230,7 +230,8 @@ export default function AnalyticsPage() {
       const influencerMap = new Map<string, any>();
       campaigns.forEach(c => {
         if (c.influencer) {
-          const key = c.influencer.insta_name;
+          const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
+          const key = displayName;
           const existing = influencerMap.get(key) || { spent: 0, likes: 0, comments: 0, campaigns: 0 };
           influencerMap.set(key, {
             spent: existing.spent + (c.agreed_amount || 0),
@@ -659,7 +660,7 @@ export default function AnalyticsPage() {
               </thead>
               <tbody>
                 {roiData.byInfluencer.map((inf, index) => (
-                  <tr key={inf.insta_name} className="table-row">
+                  <tr key={inf.insta_name || index} className="table-row">
                     <td className="table-cell">
                       <span className={`w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold ${
                         index === 0 ? 'bg-yellow-100 text-yellow-700' :
@@ -670,7 +671,7 @@ export default function AnalyticsPage() {
                         {index + 1}
                       </span>
                     </td>
-                    <td className="table-cell font-medium">@{inf.insta_name}</td>
+                    <td className="table-cell font-medium">@{inf.insta_name || '不明'}</td>
                     <td className="table-cell">{inf.campaigns}件</td>
                     <td className="table-cell">{formatCurrency(inf.spent)}</td>
                     <td className="table-cell text-pink-600 font-medium">{formatNumber(inf.likes)}</td>

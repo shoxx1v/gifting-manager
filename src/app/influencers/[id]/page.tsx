@@ -267,7 +267,7 @@ export default function InfluencerDetailPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                @{influencer.insta_name}
+                @{influencer.insta_name || influencer.tiktok_name || '不明'}
                 {isFavorite && <Star className="text-amber-500 fill-current" size={20} />}
                 {isBlacklisted && <Ban className="text-red-500" size={20} />}
               </h1>

@@ -106,7 +106,8 @@ export default function ReportsPage() {
     const influencerMap = new Map<string, any>();
     campaignList.forEach(c => {
       if (c.influencer) {
-        const key = c.influencer.insta_name;
+        const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
+        const key = displayName;
         const existing = influencerMap.get(key) || { spent: 0, likes: 0, campaigns: 0 };
         influencerMap.set(key, {
           insta_name: key,
@@ -191,7 +192,8 @@ export default function ReportsPage() {
       csv += '\n\n【案件詳細】\n';
       csv += 'インフルエンサー,ブランド,品番,ステータス,合意額,投稿日,いいね,コメント,投稿URL\n';
       data.campaigns.forEach(c => {
-        csv += `@${c.influencer?.insta_name || ''},${c.brand || ''},${c.item_code || ''},${c.status},¥${(c.agreed_amount || 0).toLocaleString()},${c.post_date || ''},${c.likes || 0},${c.comments || 0},${c.post_url || ''}\n`;
+        const displayName = c.influencer?.insta_name || c.influencer?.tiktok_name || '';
+        csv += `@${displayName},${c.brand || ''},${c.item_code || ''},${c.status},¥${(c.agreed_amount || 0).toLocaleString()},${c.post_date || ''},${c.likes || 0},${c.comments || 0},${c.post_url || ''}\n`;
       });
     }
 
@@ -222,7 +224,8 @@ export default function ReportsPage() {
         .sort((a, b) => b.likes - a.likes)
         .forEach(inf => {
           const costPerLike = inf.likes > 0 ? inf.spent / inf.likes : 0;
-          csv += `@${inf.insta_name},${inf.tiktok_name || ''},${inf.followers || ''},${inf.campaigns},¥${inf.spent.toLocaleString()},${inf.likes.toLocaleString()},¥${Math.round(costPerLike).toLocaleString()}\n`;
+          const displayName = inf.insta_name || inf.tiktok_name || '不明';
+          csv += `@${displayName},${inf.tiktok_name || ''},${inf.followers || ''},${inf.campaigns},¥${inf.spent.toLocaleString()},${inf.likes.toLocaleString()},¥${Math.round(costPerLike).toLocaleString()}\n`;
         });
     }
 
