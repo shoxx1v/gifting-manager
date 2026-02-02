@@ -44,6 +44,7 @@ const HEADER_PATTERNS: Record<string, string[]> = {
   likes: ['いいね数', 'like', 'likes', 'Like', 'Likes', 'いいね', 'like count', 'likecount', 'LIKE', 'いいね！'],
   comments: ['コメント数', 'comment', 'comments', 'Comment', 'Comments', 'コメント', 'comment count', 'コメントcount', 'COMMENT'],
   consideration_comment: ['検討コメント', '考慮コメント', 'consideration comment', 'Consideration Comment', 'considerationcomment', '備考コメント', '注意事項', 'consideration', 'Consideration'],
+  engagement_date: ['入力日', 'エンゲージメント入力日', 'engagement date', 'Engagement Date', 'engagementdate', '記録日', '計測日', '測定日'],
   number_of_times: ['number of times', 'Number of times', 'numberoftimes', '回数', 'times', '実施回数', '案件回数'],
   notes: ['notes', 'Notes', 'note', 'Note', 'memo', 'Memo', 'メモ', '備考', 'remarks', 'Remarks', '注記', '補足', 'その他'],
 };
@@ -271,6 +272,7 @@ export default function ImportPage() {
         likes: parseNumber(getValue('likes')),
         comments: parseNumber(getValue('comments')),
         consideration_comment: parseNumber(getValue('consideration_comment')),
+        engagement_date: parseDate(getValue('engagement_date')),
         item_quantity: parseNumber(getValue('item_quantity')) || 1,
         number_of_times: parseNumber(getValue('number_of_times')) || 1,
         notes: getValue('notes')?.toString().trim() || '',
@@ -437,6 +439,7 @@ export default function ImportPage() {
               likes: row.likes || 0,
               comments: row.comments || 0,
               consideration_comment: row.consideration_comment || 0,
+              engagement_date: row.engagement_date || null,
               number_of_times: row.number_of_times || 1,
               notes: row.notes || null,
               created_by: user?.id,
@@ -532,6 +535,7 @@ export default function ImportPage() {
     likes: 'いいね数',
     comments: 'コメント数',
     consideration_comment: '検討コメント',
+    engagement_date: '入力日',
     number_of_times: '回数',
     notes: 'メモ',
   };

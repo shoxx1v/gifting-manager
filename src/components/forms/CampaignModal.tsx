@@ -39,6 +39,7 @@ export default function CampaignModal({
     likes: campaign?.likes || 0,
     comments: campaign?.comments || 0,
     consideration_comment: campaign?.consideration_comment || 0,
+    engagement_date: campaign?.engagement_date || '',
     number_of_times: campaign?.number_of_times || 1,
     notes: campaign?.notes || '',
   });
@@ -105,6 +106,7 @@ export default function CampaignModal({
         likes: formData.likes || 0,
         comments: formData.comments || 0,
         consideration_comment: formData.consideration_comment || 0,
+        engagement_date: formData.engagement_date || null,
         number_of_times: formData.number_of_times || 1,
         notes: updatedNotes || null,
         updated_by: user?.id,
@@ -441,7 +443,7 @@ export default function CampaignModal({
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900 border-b pb-2">エンゲージメント</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   いいね数
@@ -484,6 +486,20 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={0}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  入力日
+                </label>
+                <input
+                  type="date"
+                  value={formData.engagement_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, engagement_date: e.target.value })
+                  }
+                  className="input-field"
                 />
               </div>
 

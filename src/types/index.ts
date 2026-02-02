@@ -36,6 +36,7 @@ export interface Campaign {
   likes: number | null;
   comments: number | null;
   consideration_comment: number | null;
+  engagement_date: string | null; // エンゲージメント入力日
   number_of_times: number | null; // 回数
   notes: string | null;
   created_by: string | null; // 作成者ID
@@ -118,6 +119,7 @@ export interface CampaignFormData {
   likes: number;
   comments: number;
   consideration_comment: number;
+  engagement_date: string;
   number_of_times: number;
   notes: string;
 }
@@ -147,6 +149,7 @@ export interface ImportRow {
   likes?: number;
   comments?: number;
   consideration_comment?: number;
+  engagement_date?: string;
   item_quantity?: number;
   number_of_times?: number;
   notes?: string;
