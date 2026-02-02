@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Campaign, Influencer, CampaignFormData } from '@/types';
-import { X, Loader2, User, Calendar } from 'lucide-react';
+import { X, Loader2, User, Calendar, MessageSquare, Plus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface CampaignModalProps {
@@ -43,12 +43,23 @@ export default function CampaignModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // コメント機能用の状態
+  const [newComment, setNewComment] = useState('');
+  const [comments, setComments] = useState<{ text: string; user: string; date: string }[]>([]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
+      // 既存のnotesにコメントを追加
+      let updatedNotes = formData.notes || '';
+      if (newComment.trim()) {
+        const commentEntry = `\n[${new Date().toLocaleString('ja-JP')}] ${user?.email?.split('@')[0] || 'ユーザー'}: ${newComment}`;
+        updatedNotes = updatedNotes + commentEntry;
+      }
+
       const payload = {
         influencer_id: formData.influencer_id,
         brand: formData.brand || null,
@@ -67,22 +78,20 @@ export default function CampaignModal({
         comments: formData.comments || 0,
         consideration_comment: formData.consideration_comment || 0,
         number_of_times: formData.number_of_times || 1,
-        notes: formData.notes || null,
-        updated_by: user?.id, // 更新者を自動記録
+        notes: updatedNotes || null,
+        updated_by: user?.id,
       };
 
       if (campaign) {
-        // 更新
         const { error } = await supabase
           .from('campaigns')
           .update(payload)
           .eq('id', campaign.id);
         if (error) throw error;
       } else {
-        // 新規作成（作成者も記録）
         const { error } = await supabase.from('campaigns').insert([{
           ...payload,
-          created_by: user?.id, // 作成者を自動記録
+          created_by: user?.id,
         }]);
         if (error) throw error;
       }
@@ -95,7 +104,6 @@ export default function CampaignModal({
     }
   };
 
-  // 作成者・更新者情報の表示
   const formatDateTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('ja-JP', {
       year: 'numeric',
@@ -106,10 +114,25 @@ export default function CampaignModal({
     });
   };
 
+  // notesからコメント履歴を抽出
+  const parseComments = (notes: string | null) => {
+    if (!notes) return [];
+    const lines = notes.split('\n').filter(line => line.startsWith('['));
+    return lines.map(line => {
+      const match = line.match(/\[(.+?)\] (.+?): (.+)/);
+      if (match) {
+        return { date: match[1], user: match[2], text: match[3] };
+      }
+      return null;
+    }).filter(Boolean) as { date: string; user: string; text: string }[];
+  };
+
+  const existingComments = parseComments(campaign?.notes || null);
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b z-10">
           <h2 className="text-xl font-bold">
             {campaign ? '案件編集' : '新規案件'}
           </h2>
@@ -444,20 +467,74 @@ export default function CampaignModal({
             </div>
           </div>
 
-          {/* メモ */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              メモ
-            </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
-              className="input-field"
-              rows={3}
-              placeholder="備考など..."
-            />
+          {/* コメント・メモ */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-gray-900 border-b pb-2 flex items-center gap-2">
+              <MessageSquare size={18} />
+              コメント・メモ
+            </h3>
+
+            {/* 既存のコメント履歴 */}
+            {existingComments.length > 0 && (
+              <div className="space-y-2 max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                {existingComments.map((comment, index) => (
+                  <div key={index} className="text-sm">
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <User size={12} />
+                      <span className="font-medium">{comment.user}</span>
+                      <span className="text-xs">{comment.date}</span>
+                    </div>
+                    <p className="text-gray-700 ml-4">{comment.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 新しいコメント入力 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                新しいコメントを追加
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="コメントを入力..."
+                  className="input-field flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newComment.trim()) {
+                      const currentNotes = formData.notes || '';
+                      const commentEntry = `\n[${new Date().toLocaleString('ja-JP')}] ${user?.email?.split('@')[0] || 'ユーザー'}: ${newComment}`;
+                      setFormData({ ...formData, notes: currentNotes + commentEntry });
+                      setNewComment('');
+                    }
+                  }}
+                  className="btn-secondary p-2"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* メモ欄 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                メモ
+              </label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+                className="input-field"
+                rows={3}
+                placeholder="備考など..."
+              />
+            </div>
           </div>
 
           {error && (
