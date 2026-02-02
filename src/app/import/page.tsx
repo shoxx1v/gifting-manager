@@ -7,6 +7,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast, translateError } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   Upload,
   FileSpreadsheet,
@@ -54,6 +55,7 @@ const HEADER_PATTERNS: Record<string, string[]> = {
 export default function ImportPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { currentBrand } = useBrand();
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<ImportRow[]>([]);
   const [allData, setAllData] = useState<ImportRow[]>([]);
@@ -447,7 +449,7 @@ export default function ImportPage() {
           .insert([
             {
               influencer_id: influencer!.id,
-              brand: row.brand || null,
+              brand: currentBrand, // 常に現在選択中のブランドを使用
               item_code: row.item_code || null,
               item_quantity: row.item_quantity || 1,
               sale_date: row.sale_date || null,

@@ -9,6 +9,7 @@ import { useToast, translateError } from '@/lib/toast';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import LoadingSpinner, { CardSkeleton } from '@/components/ui/LoadingSpinner';
 import ErrorDisplay from '@/components/ui/ErrorDisplay';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   Plus,
   Search,
@@ -43,6 +44,7 @@ export default function InfluencersPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { currentBrand } = useBrand();
   const [influencers, setInfluencers] = useState<InfluencerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +60,10 @@ export default function InfluencersPage() {
     setError(null);
 
     try {
-      // インフルエンサーと案件を取得
+      // インフルエンサーと案件を取得（ブランドでフィルター）
       const [influencersRes, campaignsRes] = await Promise.all([
         supabase.from('influencers').select('*').order('created_at', { ascending: false }),
-        supabase.from('campaigns').select('*'),
+        supabase.from('campaigns').select('*').eq('brand', currentBrand),
       ]);
 
       if (influencersRes.error) throw influencersRes.error;
@@ -160,7 +162,7 @@ export default function InfluencersPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, currentBrand]);
 
   useEffect(() => {
     if (user) {

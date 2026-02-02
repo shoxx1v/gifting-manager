@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   TrendingUp,
   TrendingDown,
@@ -105,40 +106,26 @@ const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'
 
 export default function AnalyticsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { currentBrand } = useBrand();
   const [loading, setLoading] = useState(true);
   const [roiData, setRoiData] = useState<ROIData | null>(null);
   const [dateRange, setDateRange] = useState<string>('all');
-  const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [comparisonPeriod, setComparisonPeriod] = useState<string>('month');
-  const [brands, setBrands] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
       fetchROIData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, dateRange, selectedBrand, comparisonPeriod]);
-
-  useEffect(() => {
-    const fetchBrands = async () => {
-      const { data } = await supabase.from('campaigns').select('brand');
-      if (data) {
-        setBrands(Array.from(new Set(data.map(c => c.brand).filter(Boolean))) as string[]);
-      }
-    };
-    fetchBrands();
-  }, []);
+  }, [user, dateRange, currentBrand, comparisonPeriod]);
 
   const fetchROIData = async () => {
     setLoading(true);
 
     let query = supabase
       .from('campaigns')
-      .select('*, influencer:influencers(*)');
-
-    if (selectedBrand !== 'all') {
-      query = query.eq('brand', selectedBrand);
-    }
+      .select('*, influencer:influencers(*)')
+      .eq('brand', currentBrand); // 常に現在のブランドでフィルター
 
     // 日付フィルター
     const now = new Date();
@@ -184,9 +171,7 @@ export default function AnalyticsPage() {
         .gte('created_at', previousStartDate.toISOString())
         .lt('created_at', previousEndDate.toISOString());
 
-      if (selectedBrand !== 'all') {
-        prevQuery = prevQuery.eq('brand', selectedBrand);
-      }
+      prevQuery = prevQuery.eq('brand', currentBrand);
 
       const { data } = await prevQuery;
       previousCampaigns = data || [];
@@ -391,17 +376,6 @@ export default function AnalyticsPage() {
               <option value="30d">過去30日</option>
               <option value="90d">過去90日</option>
               <option value="1y">過去1年</option>
-            </select>
-
-            <select
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
-              className="input-field text-sm min-w-[120px]"
-            >
-              <option value="all">全ブランド</option>
-              {brands.map((brand) => (
-                <option key={brand} value={brand}>{brand}</option>
-              ))}
             </select>
 
             <button className="btn-primary flex items-center gap-2">

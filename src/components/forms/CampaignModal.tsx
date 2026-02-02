@@ -7,6 +7,7 @@ import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag } from 'lucide-rea
 import { useAuth } from '@/hooks/useAuth';
 import TagInput, { SUGGESTED_TAGS } from '@/components/ui/TagInput';
 import QuickTemplates, { QuickAmountButtons, QuickDateButtons } from '@/components/ui/QuickTemplates';
+import { useBrand } from '@/contexts/BrandContext';
 
 interface CampaignModalProps {
   campaign: Campaign | null;
@@ -22,9 +23,10 @@ export default function CampaignModal({
   onSave,
 }: CampaignModalProps) {
   const { user } = useAuth();
+  const { currentBrand } = useBrand();
   const [formData, setFormData] = useState<CampaignFormData>({
     influencer_id: campaign?.influencer_id || '',
-    brand: campaign?.brand || '',
+    brand: campaign?.brand || currentBrand, // 現在のブランドを自動設定
     item_code: campaign?.item_code || '',
     item_quantity: campaign?.item_quantity || 1,
     sale_date: campaign?.sale_date || '',

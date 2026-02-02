@@ -18,11 +18,20 @@ import {
   FileText,
   Bell,
   History,
+  Building2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { ThemeToggleSimple } from '@/components/ThemeProvider';
+import { useBrand, BRANDS, Brand } from '@/contexts/BrandContext';
+
+// ブランドの色設定
+const BRAND_COLORS: Record<Brand, { bg: string; text: string; border: string; active: string }> = {
+  TL: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', active: 'from-blue-500 to-blue-600' },
+  BE: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', active: 'from-emerald-500 to-emerald-600' },
+  AM: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', active: 'from-rose-500 to-rose-600' },
+};
 
 const navigation = [
   { name: 'ダッシュボード', href: '/dashboard', icon: LayoutDashboard, color: 'text-blue-500' },
@@ -43,6 +52,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { currentBrand, setCurrentBrand } = useBrand();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -113,6 +123,33 @@ export default function Sidebar() {
                 </h1>
                 <p className="text-xs text-gray-400 mt-0.5">インフルエンサー管理</p>
               </div>
+            </div>
+          </div>
+
+          {/* ブランド切り替え */}
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 size={14} className="text-gray-400" />
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">ブランド</span>
+            </div>
+            <div className="flex gap-2">
+              {BRANDS.map((brand) => {
+                const colors = BRAND_COLORS[brand];
+                const isActive = currentBrand === brand;
+                return (
+                  <button
+                    key={brand}
+                    onClick={() => setCurrentBrand(brand)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
+                      isActive
+                        ? `bg-gradient-to-r ${colors.active} text-white shadow-md`
+                        : `${colors.bg} ${colors.text} border ${colors.border} hover:shadow-sm`
+                    }`}
+                  >
+                    {brand}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

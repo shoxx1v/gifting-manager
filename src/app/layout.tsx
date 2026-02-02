@@ -5,6 +5,7 @@ import { ToastProvider } from '@/lib/toast';
 import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import PWAProvider from '@/components/PWAProvider';
+import { BrandProvider } from '@/contexts/BrandContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,13 +49,15 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <ThemeProvider>
-          <ToastProvider>
-            <ConfirmProvider>
-              <PWAProvider>
-                {children}
-              </PWAProvider>
-            </ConfirmProvider>
-          </ToastProvider>
+          <BrandProvider>
+            <ToastProvider>
+              <ConfirmProvider>
+                <PWAProvider>
+                  {children}
+                </PWAProvider>
+              </ConfirmProvider>
+            </ToastProvider>
+          </BrandProvider>
         </ThemeProvider>
       </body>
     </html>

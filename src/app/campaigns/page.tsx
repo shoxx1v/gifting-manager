@@ -26,18 +26,19 @@ import {
   Loader2,
 } from 'lucide-react';
 import CampaignModal from '@/components/forms/CampaignModal';
+import { useBrand } from '@/contexts/BrandContext';
 
 export default function CampaignsPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { currentBrand } = useBrand();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [influencers, setInfluencers] = useState<Influencer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
@@ -63,6 +64,7 @@ export default function CampaignsPage() {
             *,
             influencer:influencers(*)
           `)
+          .eq('brand', currentBrand) // ブランドでフィルター
           .order('created_at', { ascending: false }),
       ]);
 
@@ -78,7 +80,7 @@ export default function CampaignsPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, currentBrand]);
 
   useEffect(() => {
     if (user) {
@@ -217,17 +219,13 @@ export default function CampaignsPage() {
     }
   };
 
-  const brands = Array.from(new Set(campaigns.map((c) => c.brand).filter(Boolean)));
-
   const filteredCampaigns = campaigns.filter((c) => {
     const influencerName = c.influencer?.insta_name || c.influencer?.tiktok_name || '';
     const matchesSearch =
       influencerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.item_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+      c.item_code?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    const matchesBrand = brandFilter === 'all' || c.brand === brandFilter;
-    return matchesSearch && matchesStatus && matchesBrand;
+    return matchesSearch && matchesStatus;
   });
 
   const getStatusClass = (status: string) => {
@@ -376,19 +374,6 @@ export default function CampaignsPage() {
                 <option value="cancelled">キャンセル</option>
               </select>
             </div>
-
-            <select
-              value={brandFilter}
-              onChange={(e) => setBrandFilter(e.target.value)}
-              className="input-field appearance-none cursor-pointer"
-            >
-              <option value="all">全ブランド</option>
-              {brands.map((brand) => (
-                <option key={brand} value={brand}>
-                  {brand}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -501,7 +486,7 @@ export default function CampaignsPage() {
             <TableSkeleton rows={8} cols={10} />
           ) : filteredCampaigns.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              {searchTerm || statusFilter !== 'all' || brandFilter !== 'all'
+              {searchTerm || statusFilter !== 'all'
                 ? '検索結果がありません'
                 : '案件が登録されていません'}
             </div>

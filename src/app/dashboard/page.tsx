@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast, translateError } from '@/lib/toast';
 import LoadingSpinner, { StatCardSkeleton } from '@/components/ui/LoadingSpinner';
 import ErrorDisplay from '@/components/ui/ErrorDisplay';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   Users,
   Gift,
@@ -77,22 +78,23 @@ const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { currentBrand } = useBrand();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('all');
-  const [brands, setBrands] = useState<string[]>([]);
   const [items, setItems] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const { data, error } = await supabase.from('campaigns').select('brand, item_code');
+        const { data, error } = await supabase
+          .from('campaigns')
+          .select('item_code')
+          .eq('brand', currentBrand);
         if (error) throw error;
         if (data) {
-          setBrands(Array.from(new Set(data.map(c => c.brand).filter(Boolean))) as string[]);
           setItems(Array.from(new Set(data.map(c => c.item_code).filter(Boolean))) as string[]);
         }
       } catch (err) {
@@ -100,7 +102,7 @@ export default function DashboardPage() {
       }
     };
     fetchFilters();
-  }, []);
+  }, [currentBrand]);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -110,11 +112,9 @@ export default function DashboardPage() {
 
     let query = supabase
       .from('campaigns')
-      .select('*, influencer:influencers(*)');
+      .select('*, influencer:influencers(*)')
+      .eq('brand', currentBrand); // 常に現在のブランドでフィルター
 
-    if (selectedBrand !== 'all') {
-      query = query.eq('brand', selectedBrand);
-    }
     if (selectedItem !== 'all') {
       query = query.eq('item_code', selectedItem);
     }
@@ -304,7 +304,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBrand, selectedItem, dateRange, showToast]);
+  }, [currentBrand, selectedItem, dateRange, showToast]);
 
   useEffect(() => {
     if (user) {
@@ -411,17 +411,6 @@ export default function DashboardPage() {
               <option value="30d">過去30日</option>
               <option value="90d">過去90日</option>
               <option value="1y">過去1年</option>
-            </select>
-
-            <select
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
-              className="input-field text-sm min-w-[120px]"
-            >
-              <option value="all">全ブランド</option>
-              {brands.map((brand) => (
-                <option key={brand} value={brand}>{brand}</option>
-              ))}
             </select>
 
             <select

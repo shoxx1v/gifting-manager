@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   FileText,
   Download,
@@ -47,9 +48,9 @@ interface ReportData {
 
 export default function ReportsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { currentBrand } = useBrand();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [brands, setBrands] = useState<string[]>([]);
   const [items, setItems] = useState<string[]>([]);
   const [previewData, setPreviewData] = useState<ReportData | null>(null);
   const [config, setConfig] = useState<ReportConfig>({
@@ -64,28 +65,28 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const fetchFilters = async () => {
-      const { data } = await supabase.from('campaigns').select('brand, item_code');
+      const { data } = await supabase
+        .from('campaigns')
+        .select('item_code')
+        .eq('brand', currentBrand);
       if (data) {
-        setBrands(Array.from(new Set(data.map(c => c.brand).filter(Boolean))) as string[]);
         setItems(Array.from(new Set(data.map(c => c.item_code).filter(Boolean))) as string[]);
       }
     };
     fetchFilters();
-  }, []);
+  }, [currentBrand]);
 
   const fetchReportData = async (): Promise<ReportData> => {
     let query = supabase
       .from('campaigns')
-      .select('*, influencer:influencers(*)');
+      .select('*, influencer:influencers(*)')
+      .eq('brand', currentBrand); // 常に現在のブランドでフィルター
 
     if (config.dateFrom) {
       query = query.gte('created_at', config.dateFrom);
     }
     if (config.dateTo) {
       query = query.lte('created_at', config.dateTo + 'T23:59:59');
-    }
-    if (config.brands.length > 0) {
-      query = query.in('brand', config.brands);
     }
     if (config.items.length > 0) {
       query = query.in('item_code', config.items);
@@ -393,23 +394,6 @@ export default function ReportsPage() {
                 フィルター
               </h3>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ブランド</label>
-                  <select
-                    multiple
-                    value={config.brands}
-                    onChange={(e) => setConfig({
-                      ...config,
-                      brands: Array.from(e.target.selectedOptions, option => option.value)
-                    })}
-                    className="input-field h-24"
-                  >
-                    {brands.map(brand => (
-                      <option key={brand} value={brand}>{brand}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Ctrl/Cmdを押しながら複数選択</p>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">商品</label>
                   <select
