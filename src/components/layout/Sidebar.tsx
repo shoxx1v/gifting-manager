@@ -24,6 +24,7 @@ import {
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { ThemeToggleSimple } from '@/components/ThemeProvider';
 
 const navigation = [
   { name: 'ダッシュボード', href: '/dashboard', icon: LayoutDashboard, color: 'text-blue-500' },
@@ -146,16 +147,19 @@ export default function Sidebar() {
           </nav>
 
           {/* ユーザー情報 & ログアウト */}
-          <div className="p-4 border-t border-gray-100 space-y-3">
-            <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-xl">
-              <p className="text-xs text-gray-400">ログイン中</p>
-              <p className="text-sm font-medium text-gray-700 truncate">@clout.co.jp</p>
+          <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-700/50 rounded-xl">
+              <div>
+                <p className="text-xs text-gray-400">ログイン中</p>
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">@clout.co.jp</p>
+              </div>
+              <ThemeToggleSimple />
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-red-50 hover:text-red-600 w-full transition-all duration-300 group"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 w-full transition-all duration-300 group"
             >
-              <div className="p-2 rounded-lg bg-gray-100 group-hover:bg-red-100 transition-colors">
+              <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 group-hover:bg-red-100 dark:group-hover:bg-red-900/50 transition-colors">
                 <LogOut size={18} />
               </div>
               <span className="font-medium">ログアウト</span>

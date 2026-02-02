@@ -242,21 +242,93 @@ html {
   }
 }
 
-/* ダークモード無効化 - 常にライトモード */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 0, 0, 0;
-    --background-start-rgb: 249, 250, 251;
-    --background-end-rgb: 255, 255, 255;
-  }
+/* ダークモードサポート */
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 17, 24, 39;
+  --background-end-rgb: 31, 41, 55;
 }
 
-/* 入力フィールドの文字色を明示的に指定 */
-input, select, textarea {
+.dark body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    135deg,
+    rgb(var(--background-start-rgb)) 0%,
+    rgb(var(--background-end-rgb)) 100%
+  );
+}
+
+/* ダークモード用のコンポーネントスタイル */
+.dark .card {
+  @apply bg-gray-800/80 border-gray-700/50 shadow-gray-900/50;
+}
+
+.dark .stat-card {
+  @apply bg-gray-800/80 border-gray-700/50 shadow-gray-900/50;
+}
+
+.dark .input-field {
+  @apply bg-gray-800 border-gray-700 text-white placeholder:text-gray-500;
+}
+
+.dark .btn-secondary {
+  @apply bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-700;
+}
+
+.dark .table-header {
+  @apply bg-gray-800 text-gray-400;
+}
+
+.dark .table-cell {
+  @apply text-gray-300;
+}
+
+.dark .table-row {
+  @apply hover:bg-gray-800/50 border-gray-700;
+}
+
+/* ライトモードのデフォルト（ダークモード無効時） */
+:root:not(.dark) {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 249, 250, 251;
+  --background-end-rgb: 255, 255, 255;
+}
+
+/* 入力フィールドの文字色を明示的に指定（ライトモードのみ） */
+:root:not(.dark) input,
+:root:not(.dark) select,
+:root:not(.dark) textarea {
   color: #1f2937 !important;
   background-color: white !important;
 }
 
-input::placeholder, textarea::placeholder {
+:root:not(.dark) input::placeholder,
+:root:not(.dark) textarea::placeholder {
   color: #9ca3af !important;
+}
+
+/* ダークモードの入力フィールド */
+.dark input,
+.dark select,
+.dark textarea {
+  color: white !important;
+  background-color: rgb(31, 41, 55) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(107, 114, 128) !important;
+}
+
+/* カスタムスクロールバー（ダークモード） */
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
