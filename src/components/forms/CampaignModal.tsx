@@ -54,32 +54,51 @@ export default function CampaignModal({
     campaign?.desired_post_start && campaign?.desired_post_end ? 'range' : 'single'
   );
 
-  // 投稿ステータスを自動計算
+  // 投稿ステータスを自動計算（詳細カテゴリ）
   const calculatePostStatus = (saleDate: string, postDate: string, desiredDate: string, desiredStart: string, desiredEnd: string): string => {
     if (!saleDate) return '';
     if (postDate) return '投稿済み';
 
-    const now = new Date();
     const sale = new Date(saleDate);
     const targetDate = desiredDate ? new Date(desiredDate) :
                        desiredStart ? new Date(desiredStart) : null;
 
     if (!targetDate) return '';
 
-    // 投稿日がセール日より前
-    if (targetDate < sale) {
-      return 'Before sale';
-    }
-
-    // セール日からの経過日数
+    // セール日からの日数差（マイナス = セール前、プラス = セール後）
     const daysDiff = Math.floor((targetDate.getTime() - sale.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (daysDiff <= 14) {
-      return '2 week after sale';
+    // セール前
+    if (daysDiff < 0) {
+      if (daysDiff >= -7) {
+        return 'セール1週間前';
+      } else if (daysDiff >= -14) {
+        return 'セール2週間前';
+      } else {
+        return 'セール2週間以上前';
+      }
+    }
+
+    // セール当日
+    if (daysDiff === 0) {
+      return 'セール当日';
+    }
+
+    // セール後
+    if (daysDiff <= 3) {
+      return 'セール3日以内';
+    } else if (daysDiff <= 7) {
+      return 'セール1週間以内';
+    } else if (daysDiff <= 14) {
+      return 'セール2週間以内';
+    } else if (daysDiff <= 21) {
+      return 'セール3週間以内';
     } else if (daysDiff <= 30) {
-      return '1 month after sale';
+      return 'セール1ヶ月以内';
+    } else if (daysDiff <= 60) {
+      return 'セール2ヶ月以内';
     } else {
-      return '1 month+ after sale';
+      return 'セール2ヶ月以上後';
     }
   };
 
