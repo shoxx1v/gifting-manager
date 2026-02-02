@@ -14,6 +14,11 @@ import {
   Shield,
   ChevronRight,
   Sparkles,
+  BarChart3,
+  FileText,
+  Bell,
+  MessageSquare,
+  History,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -21,12 +26,16 @@ import { useRouter } from 'next/navigation';
 
 const navigation = [
   { name: 'ダッシュボード', href: '/dashboard', icon: LayoutDashboard, color: 'text-blue-500' },
+  { name: 'ROI分析', href: '/analytics', icon: BarChart3, color: 'text-green-500' },
   { name: 'インフルエンサー', href: '/influencers', icon: Users, color: 'text-purple-500' },
   { name: 'ギフティング案件', href: '/campaigns', icon: Gift, color: 'text-pink-500' },
-  { name: 'インポート', href: '/import', icon: Upload, color: 'text-green-500' },
+  { name: 'レポート', href: '/reports', icon: FileText, color: 'text-indigo-500' },
+  { name: 'インポート', href: '/import', icon: Upload, color: 'text-cyan-500' },
 ];
 
 const adminNavigation = [
+  { name: '通知設定', href: '/notifications', icon: Bell, color: 'text-amber-500' },
+  { name: '変更履歴', href: '/audit-log', icon: History, color: 'text-slate-500' },
   { name: '管理者', href: '/admin', icon: Shield, color: 'text-orange-500' },
 ];
 

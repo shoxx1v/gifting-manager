@@ -17,6 +17,14 @@ import {
   MessageCircle,
   User,
   Calendar,
+  CheckSquare,
+  Square,
+  ChevronDown,
+  X,
+  Tag,
+  Gift,
+  Sparkles,
+  Settings2,
 } from 'lucide-react';
 import CampaignModal from '@/components/forms/CampaignModal';
 
@@ -31,6 +39,15 @@ export default function CampaignsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
+  // 一括編集用の状態
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [bulkEditData, setBulkEditData] = useState({
+    status: '',
+    agreed_amount: '',
+  });
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+
   useEffect(() => {
     if (user) {
       fetchData();
@@ -40,7 +57,6 @@ export default function CampaignsPage() {
   const fetchData = async () => {
     setLoading(true);
 
-    // インフルエンサーと案件を同時取得（作成者・更新者情報も含む）
     const [influencersRes, campaignsRes] = await Promise.all([
       supabase.from('influencers').select('*'),
       supabase
@@ -71,6 +87,11 @@ export default function CampaignsPage() {
     const { error } = await supabase.from('campaigns').delete().eq('id', id);
     if (!error) {
       setCampaigns(campaigns.filter((c) => c.id !== id));
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
     }
   };
 
@@ -89,10 +110,77 @@ export default function CampaignsPage() {
     handleModalClose();
   };
 
-  // ユニークなブランドリスト
+  // 選択系の処理
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCampaigns.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCampaigns.map(c => c.id)));
+    }
+  };
+
+  // 一括編集の実行
+  const handleBulkEdit = async () => {
+    if (selectedIds.size === 0) return;
+
+    setBulkUpdating(true);
+
+    const updates: any = {
+      updated_by: user?.id,
+    };
+
+    if (bulkEditData.status) {
+      updates.status = bulkEditData.status;
+    }
+    if (bulkEditData.agreed_amount) {
+      updates.agreed_amount = parseFloat(bulkEditData.agreed_amount);
+    }
+
+    const { error } = await supabase
+      .from('campaigns')
+      .update(updates)
+      .in('id', Array.from(selectedIds));
+
+    if (!error) {
+      await fetchData();
+      setSelectedIds(new Set());
+      setIsBulkEditOpen(false);
+      setBulkEditData({ status: '', agreed_amount: '' });
+    }
+
+    setBulkUpdating(false);
+  };
+
+  // 一括削除
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`選択した${selectedIds.size}件の案件を削除しますか？`)) return;
+
+    const { error } = await supabase
+      .from('campaigns')
+      .delete()
+      .in('id', Array.from(selectedIds));
+
+    if (!error) {
+      setCampaigns(campaigns.filter(c => !selectedIds.has(c.id)));
+      setSelectedIds(new Set());
+    }
+  };
+
   const brands = Array.from(new Set(campaigns.map((c) => c.brand).filter(Boolean)));
 
-  // フィルタリング
   const filteredCampaigns = campaigns.filter((c) => {
     const matchesSearch =
       c.influencer?.insta_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,6 +233,15 @@ export default function CampaignsPage() {
     }).format(amount);
   };
 
+  // 統計計算
+  const stats = {
+    total: filteredCampaigns.length,
+    agree: filteredCampaigns.filter(c => c.status === 'agree').length,
+    pending: filteredCampaigns.filter(c => c.status === 'pending').length,
+    totalSpent: filteredCampaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0),
+    totalLikes: filteredCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0),
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -158,9 +255,14 @@ export default function CampaignsPage() {
       <div className="space-y-6">
         {/* ヘッダー */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">ギフティング案件管理</h1>
-            <p className="text-gray-500 mt-1">案件数: {campaigns.length}件</p>
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/30">
+              <Gift className="text-white" size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">ギフティング案件管理</h1>
+              <p className="text-gray-500 mt-0.5">案件数: {campaigns.length}件</p>
+            </div>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
@@ -169,6 +271,30 @@ export default function CampaignsPage() {
             <Plus size={20} />
             新規案件
           </button>
+        </div>
+
+        {/* 統計サマリー */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="stat-card">
+            <p className="text-xs text-gray-500">表示中</p>
+            <p className="text-xl font-bold text-gray-900">{stats.total}件</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500">合意済み</p>
+            <p className="text-xl font-bold text-green-600">{stats.agree}件</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500">保留中</p>
+            <p className="text-xl font-bold text-amber-600">{stats.pending}件</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500">総支出</p>
+            <p className="text-lg font-bold text-gray-900">{formatAmount(stats.totalSpent)}</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500">総いいね</p>
+            <p className="text-xl font-bold text-pink-600">{stats.totalLikes.toLocaleString()}</p>
+          </div>
         </div>
 
         {/* フィルター */}
@@ -184,7 +310,7 @@ export default function CampaignsPage() {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <select
@@ -215,6 +341,109 @@ export default function CampaignsPage() {
           </div>
         </div>
 
+        {/* 一括操作バー */}
+        {selectedIds.size > 0 && (
+          <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 flex items-center justify-between animate-slide-up">
+            <div className="flex items-center gap-3">
+              <CheckSquare className="text-primary-600" size={20} />
+              <span className="font-medium text-primary-900">
+                {selectedIds.size}件選択中
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsBulkEditOpen(true)}
+                className="btn-secondary text-sm flex items-center gap-2"
+              >
+                <Settings2 size={16} />
+                一括編集
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors flex items-center gap-2"
+              >
+                <Trash2 size={16} />
+                一括削除
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="p-2 hover:bg-primary-100 rounded-lg transition-colors"
+              >
+                <X size={18} className="text-primary-600" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 一括編集モーダル */}
+        {isBulkEditOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scale-in">
+              <div className="flex items-center justify-between p-6 border-b">
+                <h2 className="text-xl font-bold">一括編集</h2>
+                <button
+                  onClick={() => setIsBulkEditOpen(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600">
+                  {selectedIds.size}件の案件を一括で更新します。変更したい項目のみ入力してください。
+                </p>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ステータス
+                  </label>
+                  <select
+                    value={bulkEditData.status}
+                    onChange={(e) => setBulkEditData({ ...bulkEditData, status: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">変更しない</option>
+                    <option value="pending">保留</option>
+                    <option value="agree">合意</option>
+                    <option value="disagree">不合意</option>
+                    <option value="cancelled">キャンセル</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    合意額
+                  </label>
+                  <input
+                    type="number"
+                    value={bulkEditData.agreed_amount}
+                    onChange={(e) => setBulkEditData({ ...bulkEditData, agreed_amount: e.target.value })}
+                    placeholder="変更しない場合は空欄"
+                    className="input-field"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setIsBulkEditOpen(false)}
+                    className="btn-secondary flex-1"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleBulkEdit}
+                    disabled={bulkUpdating || (!bulkEditData.status && !bulkEditData.agreed_amount)}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {bulkUpdating && <Loader2 className="animate-spin" size={18} />}
+                    更新する
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* テーブル */}
         <div className="card overflow-hidden">
           {loading ? (
@@ -231,7 +460,19 @@ export default function CampaignsPage() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b">
+                  <tr className="border-b border-gray-100">
+                    <th className="table-header px-4 py-3 w-10">
+                      <button
+                        onClick={toggleSelectAll}
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        {selectedIds.size === filteredCampaigns.length ? (
+                          <CheckSquare size={18} className="text-primary-600" />
+                        ) : (
+                          <Square size={18} className="text-gray-400" />
+                        )}
+                      </button>
+                    </th>
                     <th className="table-header px-4 py-3">ブランド</th>
                     <th className="table-header px-4 py-3">インフルエンサー</th>
                     <th className="table-header px-4 py-3">品番</th>
@@ -241,13 +482,28 @@ export default function CampaignsPage() {
                     <th className="table-header px-4 py-3">投稿日</th>
                     <th className="table-header px-4 py-3">エンゲージメント</th>
                     <th className="table-header px-4 py-3">投稿</th>
-                    <th className="table-header px-4 py-3">更新者/日時</th>
+                    <th className="table-header px-4 py-3">更新者</th>
                     <th className="table-header px-4 py-3">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-100">
                   {filteredCampaigns.map((campaign) => (
-                    <tr key={campaign.id} className="hover:bg-gray-50">
+                    <tr
+                      key={campaign.id}
+                      className={`table-row ${selectedIds.has(campaign.id) ? 'bg-primary-50' : ''}`}
+                    >
+                      <td className="table-cell">
+                        <button
+                          onClick={() => toggleSelect(campaign.id)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          {selectedIds.has(campaign.id) ? (
+                            <CheckSquare size={18} className="text-primary-600" />
+                          ) : (
+                            <Square size={18} className="text-gray-400" />
+                          )}
+                        </button>
+                      </td>
                       <td className="table-cell">{campaign.brand || '-'}</td>
                       <td className="table-cell font-medium">
                         @{campaign.influencer?.insta_name || '不明'}
@@ -256,7 +512,7 @@ export default function CampaignsPage() {
                       <td className="table-cell">
                         {formatAmount(campaign.offered_amount)}
                       </td>
-                      <td className="table-cell">
+                      <td className="table-cell font-medium">
                         {formatAmount(campaign.agreed_amount)}
                       </td>
                       <td className="table-cell">
@@ -307,14 +563,10 @@ export default function CampaignsPage() {
                               <span>{campaign.creator.display_name || campaign.creator.email?.split('@')[0]}</span>
                             </div>
                           ) : null}
-                          <div className="flex items-center gap-1 text-gray-400 mt-1">
-                            <Calendar size={12} />
-                            <span>{new Date(campaign.updated_at).toLocaleDateString('ja-JP')}</span>
-                          </div>
                         </div>
                       </td>
                       <td className="table-cell">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleEdit(campaign)}
                             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"

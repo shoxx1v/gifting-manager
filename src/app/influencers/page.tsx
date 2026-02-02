@@ -13,32 +13,122 @@ import {
   Instagram,
   ExternalLink,
   Loader2,
+  Star,
+  TrendingUp,
+  TrendingDown,
+  Heart,
+  DollarSign,
+  Award,
+  BarChart3,
+  Filter,
+  SortAsc,
+  SortDesc,
+  Crown,
+  Medal,
+  Zap,
+  Users,
+  Sparkles,
 } from 'lucide-react';
 import InfluencerModal from '@/components/forms/InfluencerModal';
 
+interface InfluencerWithScore extends Influencer {
+  totalCampaigns: number;
+  totalLikes: number;
+  totalComments: number;
+  totalSpent: number;
+  costPerLike: number;
+  avgEngagement: number;
+  score: number;
+  rank: string;
+  lastActivity?: string;
+}
+
 export default function InfluencersPage() {
   const { user, loading: authLoading } = useAuth();
-  const [influencers, setInfluencers] = useState<Influencer[]>([]);
+  const [influencers, setInfluencers] = useState<InfluencerWithScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInfluencer, setEditingInfluencer] = useState<Influencer | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [sortBy, setSortBy] = useState<'score' | 'likes' | 'cost' | 'campaigns'>('score');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     if (user) {
-      fetchInfluencers();
+      fetchInfluencersWithScores();
     }
   }, [user]);
 
-  const fetchInfluencers = async () => {
+  const fetchInfluencersWithScores = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('influencers')
-      .select('*')
-      .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setInfluencers(data);
+    // インフルエンサーと案件を取得
+    const [{ data: influencersData }, { data: campaignsData }] = await Promise.all([
+      supabase.from('influencers').select('*').order('created_at', { ascending: false }),
+      supabase.from('campaigns').select('*'),
+    ]);
+
+    if (influencersData && campaignsData) {
+      // インフルエンサーごとにスコア計算
+      const scoredInfluencers: InfluencerWithScore[] = influencersData.map(inf => {
+        const campaigns = campaignsData.filter(c => c.influencer_id === inf.id);
+        const totalCampaigns = campaigns.length;
+        const totalLikes = campaigns.reduce((sum, c) => sum + (c.likes || 0), 0);
+        const totalComments = campaigns.reduce((sum, c) => sum + (c.comments || 0), 0);
+        const totalSpent = campaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0);
+        const costPerLike = totalLikes > 0 ? totalSpent / totalLikes : 0;
+        const avgEngagement = totalCampaigns > 0 ? (totalLikes + totalComments) / totalCampaigns : 0;
+
+        // スコア計算（0-100）
+        // コスパが良いほど高スコア、いいね数が多いほど高スコア
+        let score = 0;
+
+        if (totalCampaigns > 0) {
+          // コスパスコア（いいね単価が低いほど高い）- 最大40点
+          const costScore = costPerLike > 0 ? Math.max(0, 40 - (costPerLike / 50)) : 0;
+
+          // エンゲージメントスコア - 最大30点
+          const engagementScore = Math.min(30, (totalLikes / 1000) * 10);
+
+          // 実績スコア（案件数）- 最大20点
+          const campaignScore = Math.min(20, totalCampaigns * 4);
+
+          // 信頼性スコア（成功率）- 最大10点
+          const successRate = campaigns.filter(c => c.status === 'agree').length / totalCampaigns;
+          const reliabilityScore = successRate * 10;
+
+          score = Math.round(costScore + engagementScore + campaignScore + reliabilityScore);
+        }
+
+        // ランク判定
+        let rank = 'D';
+        if (score >= 80) rank = 'S';
+        else if (score >= 60) rank = 'A';
+        else if (score >= 40) rank = 'B';
+        else if (score >= 20) rank = 'C';
+
+        // 最終活動日
+        const sortedCampaigns = [...campaigns].sort((a, b) =>
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
+        const lastActivity = sortedCampaigns[0]?.updated_at;
+
+        return {
+          ...inf,
+          totalCampaigns,
+          totalLikes,
+          totalComments,
+          totalSpent,
+          costPerLike,
+          avgEngagement,
+          score,
+          rank,
+          lastActivity,
+        };
+      });
+
+      setInfluencers(scoredInfluencers);
     }
     setLoading(false);
   };
@@ -65,13 +155,64 @@ export default function InfluencersPage() {
   };
 
   const handleSave = () => {
-    fetchInfluencers();
+    fetchInfluencersWithScores();
     handleModalClose();
   };
 
-  const filteredInfluencers = influencers.filter((i) =>
-    i.insta_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAndSortedInfluencers = influencers
+    .filter((i) =>
+      i.insta_name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'score':
+          comparison = a.score - b.score;
+          break;
+        case 'likes':
+          comparison = a.totalLikes - b.totalLikes;
+          break;
+        case 'cost':
+          comparison = a.costPerLike - b.costPerLike;
+          break;
+        case 'campaigns':
+          comparison = a.totalCampaigns - b.totalCampaigns;
+          break;
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('ja-JP', {
+      style: 'currency',
+      currency: 'JPY',
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('ja-JP').format(value);
+  };
+
+  const getRankColor = (rank: string) => {
+    switch (rank) {
+      case 'S': return 'from-yellow-400 to-amber-500 text-white';
+      case 'A': return 'from-purple-400 to-purple-600 text-white';
+      case 'B': return 'from-blue-400 to-blue-600 text-white';
+      case 'C': return 'from-green-400 to-green-600 text-white';
+      default: return 'from-gray-400 to-gray-500 text-white';
+    }
+  };
+
+  const getRankBgColor = (rank: string) => {
+    switch (rank) {
+      case 'S': return 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-200';
+      case 'A': return 'bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200';
+      case 'B': return 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200';
+      case 'C': return 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200';
+      default: return 'bg-gray-50 border-gray-200';
+    }
+  };
 
   if (authLoading) {
     return (
@@ -86,9 +227,14 @@ export default function InfluencersPage() {
       <div className="space-y-6">
         {/* ヘッダー */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">インフルエンサー管理</h1>
-            <p className="text-gray-500 mt-1">登録済み: {influencers.length}名</p>
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg shadow-purple-500/30">
+              <Users className="text-white" size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">インフルエンサー管理</h1>
+              <p className="text-gray-500 mt-0.5">登録済み: {influencers.length}名 | スコアリング対応</p>
+            </div>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
@@ -99,45 +245,240 @@ export default function InfluencersPage() {
           </button>
         </div>
 
-        {/* 検索 */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="インフルエンサーを検索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-field pl-10"
-          />
+        {/* 統計サマリー */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Crown className="text-yellow-600" size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Sランク</p>
+                <p className="text-xl font-bold text-yellow-600">
+                  {influencers.filter(i => i.rank === 'S').length}名
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Award className="text-purple-600" size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Aランク</p>
+                <p className="text-xl font-bold text-purple-600">
+                  {influencers.filter(i => i.rank === 'A').length}名
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-pink-100 rounded-lg">
+                <Heart className="text-pink-600" size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">総いいね</p>
+                <p className="text-xl font-bold text-pink-600">
+                  {formatNumber(influencers.reduce((sum, i) => sum + i.totalLikes, 0))}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <DollarSign className="text-green-600" size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">平均いいね単価</p>
+                <p className="text-xl font-bold text-green-600">
+                  {formatCurrency(
+                    influencers.reduce((sum, i) => sum + i.totalSpent, 0) /
+                    Math.max(1, influencers.reduce((sum, i) => sum + i.totalLikes, 0))
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* テーブル */}
-        <div className="card overflow-hidden">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="animate-spin" size={40} />
-            </div>
-          ) : filteredInfluencers.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              {searchTerm
-                ? '検索結果がありません'
-                : 'インフルエンサーが登録されていません'}
-            </div>
-          ) : (
+        {/* フィルター＆ソート */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="インフルエンサーを検索..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field pl-10"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="input-field text-sm"
+            >
+              <option value="score">スコア順</option>
+              <option value="likes">いいね数順</option>
+              <option value="cost">コスパ順</option>
+              <option value="campaigns">案件数順</option>
+            </select>
+
+            <button
+              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              className="btn-secondary p-2"
+            >
+              {sortOrder === 'desc' ? <SortDesc size={20} /> : <SortAsc size={20} />}
+            </button>
+
+            <button
+              onClick={() => setViewMode(viewMode === 'cards' ? 'table' : 'cards')}
+              className="btn-secondary p-2"
+            >
+              <BarChart3 size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* コンテンツ */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="animate-spin" size={40} />
+          </div>
+        ) : filteredAndSortedInfluencers.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            {searchTerm
+              ? '検索結果がありません'
+              : 'インフルエンサーが登録されていません'}
+          </div>
+        ) : viewMode === 'cards' ? (
+          /* カードビュー */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredAndSortedInfluencers.map((influencer, index) => (
+              <div
+                key={influencer.id}
+                className={`card border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] ${getRankBgColor(influencer.rank)}`}
+              >
+                {/* ヘッダー */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getRankColor(influencer.rank)} flex items-center justify-center font-bold text-lg shadow-lg`}>
+                      {influencer.rank}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Instagram size={16} className="text-pink-500" />
+                        <span className="font-bold text-gray-900">@{influencer.insta_name}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        スコア: {influencer.score}/100
+                      </p>
+                    </div>
+                  </div>
+                  {index < 3 && (
+                    <div className="flex items-center gap-1">
+                      {index === 0 && <Crown className="text-yellow-500" size={20} />}
+                      {index === 1 && <Medal className="text-gray-400" size={20} />}
+                      {index === 2 && <Medal className="text-orange-400" size={20} />}
+                    </div>
+                  )}
+                </div>
+
+                {/* スコアバー */}
+                <div className="mb-4">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full bg-gradient-to-r ${
+                        influencer.rank === 'S' ? 'from-yellow-400 to-amber-500' :
+                        influencer.rank === 'A' ? 'from-purple-400 to-purple-600' :
+                        influencer.rank === 'B' ? 'from-blue-400 to-blue-600' :
+                        'from-green-400 to-green-600'
+                      } rounded-full transition-all duration-500`}
+                      style={{ width: `${influencer.score}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* 統計 */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="p-2 bg-white/60 rounded-lg">
+                    <p className="text-xs text-gray-500">案件数</p>
+                    <p className="font-bold text-gray-900">{influencer.totalCampaigns}件</p>
+                  </div>
+                  <div className="p-2 bg-white/60 rounded-lg">
+                    <p className="text-xs text-gray-500">総いいね</p>
+                    <p className="font-bold text-pink-600">{formatNumber(influencer.totalLikes)}</p>
+                  </div>
+                  <div className="p-2 bg-white/60 rounded-lg">
+                    <p className="text-xs text-gray-500">総支出</p>
+                    <p className="font-bold text-gray-900">{formatCurrency(influencer.totalSpent)}</p>
+                  </div>
+                  <div className="p-2 bg-white/60 rounded-lg">
+                    <p className="text-xs text-gray-500">いいね単価</p>
+                    <p className={`font-bold ${influencer.costPerLike < 100 ? 'text-green-600' : 'text-gray-900'}`}>
+                      {influencer.costPerLike > 0 ? formatCurrency(influencer.costPerLike) : '-'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* アクション */}
+                <div className="flex gap-2">
+                  {influencer.insta_url && (
+                    <a
+                      href={influencer.insta_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary flex-1 text-center text-sm"
+                    >
+                      Instagram
+                    </a>
+                  )}
+                  <button
+                    onClick={() => handleEdit(influencer)}
+                    className="p-2 text-gray-600 hover:bg-white rounded-lg transition-colors"
+                  >
+                    <Edit2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(influencer.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* テーブルビュー */
+          <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b">
-                    <th className="table-header px-6 py-3">Instagram名</th>
-                    <th className="table-header px-6 py-3">Instagram URL</th>
-                    <th className="table-header px-6 py-3">TikTok URL</th>
-                    <th className="table-header px-6 py-3">登録日</th>
-                    <th className="table-header px-6 py-3">操作</th>
+                  <tr className="border-b border-gray-100">
+                    <th className="table-header px-4 py-3">ランク</th>
+                    <th className="table-header px-4 py-3">Instagram名</th>
+                    <th className="table-header px-4 py-3">スコア</th>
+                    <th className="table-header px-4 py-3">案件数</th>
+                    <th className="table-header px-4 py-3">総いいね</th>
+                    <th className="table-header px-4 py-3">総支出</th>
+                    <th className="table-header px-4 py-3">いいね単価</th>
+                    <th className="table-header px-4 py-3">操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredInfluencers.map((influencer) => (
-                    <tr key={influencer.id} className="hover:bg-gray-50">
+                <tbody>
+                  {filteredAndSortedInfluencers.map((influencer) => (
+                    <tr key={influencer.id} className="table-row">
+                      <td className="table-cell">
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold bg-gradient-to-r ${getRankColor(influencer.rank)}`}>
+                          {influencer.rank}
+                        </span>
+                      </td>
                       <td className="table-cell font-medium">
                         <div className="flex items-center gap-2">
                           <Instagram size={16} className="text-pink-500" />
@@ -145,37 +486,29 @@ export default function InfluencersPage() {
                         </div>
                       </td>
                       <td className="table-cell">
-                        {influencer.insta_url ? (
-                          <a
-                            href={influencer.insta_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 hover:underline flex items-center gap-1"
-                          >
-                            リンク
-                            <ExternalLink size={14} />
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden w-16">
+                            <div
+                              className="h-full bg-primary-500 rounded-full"
+                              style={{ width: `${influencer.score}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium">{influencer.score}</span>
+                        </div>
                       </td>
+                      <td className="table-cell">{influencer.totalCampaigns}件</td>
+                      <td className="table-cell text-pink-600 font-medium">
+                        {formatNumber(influencer.totalLikes)}
+                      </td>
+                      <td className="table-cell">{formatCurrency(influencer.totalSpent)}</td>
                       <td className="table-cell">
-                        {influencer.tiktok_url ? (
-                          <a
-                            href={influencer.tiktok_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 hover:underline flex items-center gap-1"
-                          >
-                            リンク
-                            <ExternalLink size={14} />
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="table-cell text-gray-500">
-                        {new Date(influencer.created_at).toLocaleDateString('ja-JP')}
+                        <span className={`px-2 py-1 rounded-full text-sm ${
+                          influencer.costPerLike < 50 ? 'bg-green-100 text-green-700' :
+                          influencer.costPerLike < 100 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {influencer.costPerLike > 0 ? formatCurrency(influencer.costPerLike) : '-'}
+                        </span>
                       </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-2">
@@ -198,8 +531,8 @@ export default function InfluencersPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* モーダル */}
