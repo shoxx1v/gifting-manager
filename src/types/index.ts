@@ -39,6 +39,7 @@ export interface Campaign {
   consideration_comment: number | null;
   engagement_date: string | null; // エンゲージメント入力日
   number_of_times: number | null; // 回数
+  product_cost: number; // 商品原価・送料（デフォルト800円）
   notes: string | null;
   created_by: string | null; // 作成者ID
   updated_by: string | null; // 最終更新者ID
@@ -122,6 +123,7 @@ export interface CampaignFormData {
   consideration_comment: number;
   engagement_date: string;
   number_of_times: number;
+  product_cost: number;
   notes: string;
 }
 
@@ -155,6 +157,7 @@ export interface ImportRow {
   engagement_date?: string;
   item_quantity?: number;
   number_of_times?: number;
+  product_cost?: number;
   notes?: string;
 }
 
