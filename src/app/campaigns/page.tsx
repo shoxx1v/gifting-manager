@@ -90,7 +90,7 @@ export default function CampaignsPage() {
   };
 
   // ユニークなブランドリスト
-  const brands = [...new Set(campaigns.map((c) => c.brand).filter(Boolean))];
+  const brands = Array.from(new Set(campaigns.map((c) => c.brand).filter(Boolean)));
 
   // フィルタリング
   const filteredCampaigns = campaigns.filter((c) => {

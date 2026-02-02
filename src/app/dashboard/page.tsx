@@ -238,8 +238,8 @@ export default function DashboardPage() {
     const fetchFilters = async () => {
       const { data } = await supabase.from('campaigns').select('brand, item_code');
       if (data) {
-        setBrands([...new Set(data.map(c => c.brand).filter(Boolean))] as string[]);
-        setItems([...new Set(data.map(c => c.item_code).filter(Boolean))] as string[]);
+        setBrands(Array.from(new Set(data.map(c => c.brand).filter(Boolean))) as string[]);
+        setItems(Array.from(new Set(data.map(c => c.item_code).filter(Boolean))) as string[]);
       }
     };
     fetchFilters();
