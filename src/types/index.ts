@@ -42,6 +42,11 @@ export interface Campaign {
   engagement_date: string | null; // エンゲージメント入力日
   number_of_times: number | null; // 回数
   product_cost: number; // 商品原価・送料（デフォルト800円）
+  // BE用海外発送フィールド
+  is_international_shipping: boolean; // 海外発送フラグ
+  shipping_country: string | null; // 発送先国
+  international_shipping_cost: number | null; // 海外発送送料
+  currency: string; // 通貨コード（JPY, USD等）
   notes: string | null;
   created_by: string | null; // 作成者ID
   updated_by: string | null; // 最終更新者ID
@@ -128,6 +133,11 @@ export interface CampaignFormData {
   engagement_date: string;
   number_of_times: number;
   product_cost: number;
+  // BE用海外発送フィールド
+  is_international_shipping: boolean;
+  shipping_country: string;
+  international_shipping_cost: number;
+  currency: string;
   notes: string;
 }
 
@@ -164,6 +174,11 @@ export interface ImportRow {
   item_quantity?: number;
   number_of_times?: number;
   product_cost?: number;
+  // BE用海外発送フィールド
+  is_international_shipping?: boolean;
+  shipping_country?: string;
+  international_shipping_cost?: number;
+  currency?: string;
   notes?: string;
 }
 

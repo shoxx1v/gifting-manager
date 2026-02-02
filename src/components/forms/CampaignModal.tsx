@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Campaign, Influencer, CampaignFormData } from '@/types';
-import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag } from 'lucide-react';
+import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag, Globe, Plane } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import TagInput, { SUGGESTED_TAGS } from '@/components/ui/TagInput';
 import QuickTemplates, { QuickAmountButtons, QuickDateButtons } from '@/components/ui/QuickTemplates';
@@ -46,8 +46,18 @@ export default function CampaignModal({
     engagement_date: campaign?.engagement_date || '',
     number_of_times: campaign?.number_of_times || 1,
     product_cost: campaign?.product_cost ?? 800,
+    is_international_shipping: campaign?.is_international_shipping ?? false,
+    shipping_country: campaign?.shipping_country || '',
+    international_shipping_cost: campaign?.international_shipping_cost ?? 0,
+    currency: campaign?.currency || 'JPY',
     notes: campaign?.notes || '',
   });
+
+  // よくある海外発送先国リスト
+  const COMMON_COUNTRIES = [
+    '韓国', '中国', '台湾', '香港', 'タイ', 'シンガポール', 'マレーシア', 'フィリピン',
+    'アメリカ', 'カナダ', 'イギリス', 'フランス', 'ドイツ', 'オーストラリア',
+  ];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -178,6 +188,10 @@ export default function CampaignModal({
         engagement_date: formData.engagement_date || null,
         number_of_times: formData.number_of_times || 1,
         product_cost: formData.product_cost || 800,
+        is_international_shipping: formData.is_international_shipping || false,
+        shipping_country: formData.is_international_shipping ? (formData.shipping_country || null) : null,
+        international_shipping_cost: formData.is_international_shipping ? (formData.international_shipping_cost || null) : null,
+        currency: formData.currency || 'JPY',
         notes: updatedNotes || null,
         updated_by: user?.id,
       };
@@ -549,6 +563,82 @@ export default function CampaignModal({
               </div>
             </div>
           </div>
+
+          {/* BE用海外発送設定 */}
+          {currentBrand === 'BE' && (
+            <div className="space-y-4">
+              <h3 className="font-medium text-gray-900 border-b pb-2 flex items-center gap-2">
+                <Globe size={18} className="text-emerald-500" />
+                海外発送設定（BEブランド）
+              </h3>
+
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4 space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_international_shipping}
+                    onChange={(e) => setFormData({ ...formData, is_international_shipping: e.target.checked })}
+                    className="w-5 h-5 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="font-medium text-emerald-900 flex items-center gap-2">
+                    <Plane size={16} />
+                    海外発送案件として登録
+                  </span>
+                </label>
+
+                {formData.is_international_shipping && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-8">
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">
+                        発送先国
+                      </label>
+                      <select
+                        value={formData.shipping_country}
+                        onChange={(e) => setFormData({ ...formData, shipping_country: e.target.value })}
+                        className="input-field text-sm"
+                      >
+                        <option value="">選択してください</option>
+                        {COMMON_COUNTRIES.map(country => (
+                          <option key={country} value={country}>{country}</option>
+                        ))}
+                        <option value="その他">その他</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">
+                        海外発送送料（円）
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.international_shipping_cost}
+                        onChange={(e) => setFormData({ ...formData, international_shipping_cost: parseInt(e.target.value) || 0 })}
+                        className="input-field text-sm"
+                        min={0}
+                        placeholder="2000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-emerald-800 mb-1">
+                        通貨
+                      </label>
+                      <select
+                        value={formData.currency}
+                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                        className="input-field text-sm"
+                      >
+                        <option value="JPY">JPY（日本円）</option>
+                        <option value="USD">USD（米ドル）</option>
+                        <option value="KRW">KRW（韓国ウォン）</option>
+                        <option value="CNY">CNY（人民元）</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 投稿情報 */}
           <div className="space-y-4">

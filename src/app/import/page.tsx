@@ -21,6 +21,9 @@ import {
   RefreshCw,
   Sparkles,
   HelpCircle,
+  AlertTriangle,
+  Globe,
+  Plane,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -48,9 +51,19 @@ const HEADER_PATTERNS: Record<string, string[]> = {
   consideration_comment: ['検討コメント', '考慮コメント', 'consideration comment', 'Consideration Comment', 'considerationcomment', '備考コメント', '注意事項', 'consideration', 'Consideration'],
   engagement_date: ['入力日', 'エンゲージメント入力日', 'engagement date', 'Engagement Date', 'engagementdate', '記録日', '計測日', '測定日'],
   number_of_times: ['number of times', 'Number of times', 'numberoftimes', '回数', 'times', '実施回数', '案件回数'],
-  product_cost: ['商品原価', '原価', '送料', 'product cost', 'Product Cost', 'productcost', 'cost', 'shipping', '商品コスト', '原価・送料'],
+  product_cost: ['商品原価', '原価', '送料', 'product cost', 'Product Cost', 'productcost', 'cost', 'shipping', '商品コスト', '原価・送料', '商品原価・送料', '商品原価・送料（円）'],
+  is_international_shipping: ['海外発送', '海外', 'international', 'International', 'overseas', 'Overseas', '国際発送'],
+  shipping_country: ['発送先国', '国', 'country', 'Country', '発送国', '配送先国', '送り先国'],
+  international_shipping_cost: ['海外送料', '国際送料', 'international shipping cost', 'International Shipping Cost', '海外発送送料'],
+  currency: ['通貨', 'currency', 'Currency', '通貨コード'],
   notes: ['notes', 'Notes', 'note', 'Note', 'memo', 'Memo', 'メモ', '備考', 'remarks', 'Remarks', '注記', '補足', 'その他'],
 };
+
+// よくある海外発送先国リスト
+const COMMON_COUNTRIES = [
+  '韓国', '中国', '台湾', '香港', 'タイ', 'シンガポール', 'マレーシア', 'フィリピン',
+  'アメリカ', 'カナダ', 'イギリス', 'フランス', 'ドイツ', 'オーストラリア',
+];
 
 export default function ImportPage() {
   const { user, loading: authLoading } = useAuth();
@@ -63,6 +76,7 @@ export default function ImportPage() {
   const [result, setResult] = useState<{
     success: number;
     failed: number;
+    skipped: number;
     errors: string[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +86,23 @@ export default function ImportPage() {
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [unmappedColumns, setUnmappedColumns] = useState<string[]>([]);
+
+  // 重複チェック関連
+  const [duplicates, setDuplicates] = useState<{
+    inFile: { row1: number; row2: number; name: string }[];
+    inDatabase: { row: number; name: string; existingCampaigns: number }[];
+  }>({ inFile: [], inDatabase: [] });
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+
+  // BE用海外発送設定
+  const [showInternationalSettings, setShowInternationalSettings] = useState(false);
+  const [defaultInternationalShipping, setDefaultInternationalShipping] = useState({
+    enabled: false,
+    country: '',
+    cost: 2000,
+    currency: 'JPY',
+  });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -106,6 +137,14 @@ export default function ImportPage() {
       setPreviewData(mappedData.slice(0, 10));
 
       console.log('変換後のデータ数:', mappedData.length);
+
+      // 重複チェックを実行
+      await checkDuplicates(mappedData);
+
+      // BEブランドの場合、海外発送設定を表示
+      if (currentBrand === 'BE') {
+        setShowInternationalSettings(true);
+      }
 
       // マッピングが不完全な場合は設定画面を表示
       // Instagram名またはTikTok名のどちらかがあればOK
@@ -377,6 +416,76 @@ export default function ImportPage() {
     return 'pending';
   };
 
+  // 重複チェック関数
+  const checkDuplicates = async (data: ImportRow[]) => {
+    setCheckingDuplicates(true);
+    const inFileDuplicates: { row1: number; row2: number; name: string }[] = [];
+    const inDbDuplicates: { row: number; name: string; existingCampaigns: number }[] = [];
+
+    // 1. ファイル内の重複チェック（同じインフルエンサー名 + 同じ品番）
+    const seen = new Map<string, number>();
+    data.forEach((row, index) => {
+      const key = `${row.insta_name || row.tiktok_name}_${row.item_code || ''}`;
+      if (seen.has(key)) {
+        inFileDuplicates.push({
+          row1: seen.get(key)! + 1,
+          row2: index + 1,
+          name: row.insta_name || row.tiktok_name || '不明',
+        });
+      } else {
+        seen.set(key, index);
+      }
+    });
+
+    // 2. データベースとの重複チェック
+    try {
+      // ユニークなインフルエンサー名を抽出
+      const uniqueNames = Array.from(new Set(data.map(row => row.insta_name || row.tiktok_name).filter(Boolean)));
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const name = row.insta_name || row.tiktok_name;
+        if (!name) continue;
+
+        // インフルエンサーを検索
+        const { data: influencer } = row.insta_name
+          ? await supabase
+              .from('influencers')
+              .select('id')
+              .eq('insta_name', row.insta_name)
+              .single()
+          : await supabase
+              .from('influencers')
+              .select('id')
+              .eq('tiktok_name', row.tiktok_name)
+              .single();
+
+        if (influencer) {
+          // 同じブランド、同じ品番の既存案件をチェック
+          const { count } = await supabase
+            .from('campaigns')
+            .select('id', { count: 'exact', head: true })
+            .eq('influencer_id', influencer.id)
+            .eq('brand', currentBrand)
+            .eq('item_code', row.item_code || '');
+
+          if (count && count > 0) {
+            inDbDuplicates.push({
+              row: i + 1,
+              name: name,
+              existingCampaigns: count,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('重複チェックエラー:', error);
+    }
+
+    setDuplicates({ inFile: inFileDuplicates, inDatabase: inDbDuplicates });
+    setCheckingDuplicates(false);
+  };
+
   // マッピング変更時にデータを再変換
   const handleMappingChange = (field: string, header: string) => {
     const newMapping = { ...columnMapping, [field]: header };
@@ -403,9 +512,33 @@ export default function ImportPage() {
     const errors: string[] = [];
     let success = 0;
     let failed = 0;
+    let skipped = 0;
+
+    // 重複行のインデックスを取得（スキップする場合）
+    const duplicateRowsInFile = new Set(
+      duplicates.inFile.map(d => d.row2 - 1) // row2は重複元なのでスキップ対象
+    );
+    const duplicateRowsInDb = new Set(
+      duplicates.inDatabase.map(d => d.row - 1)
+    );
 
     for (let i = 0; i < allData.length; i++) {
       const row = allData[i];
+
+      // 重複スキップが有効な場合
+      if (skipDuplicates) {
+        if (duplicateRowsInFile.has(i)) {
+          skipped++;
+          setImportProgress(Math.round(((i + 1) / allData.length) * 100));
+          continue;
+        }
+        if (duplicateRowsInDb.has(i)) {
+          skipped++;
+          setImportProgress(Math.round(((i + 1) / allData.length) * 100));
+          continue;
+        }
+      }
+
       try {
         // インフルエンサーを検索または作成
         // Instagram名またはTikTok名で検索
@@ -443,6 +576,9 @@ export default function ImportPage() {
           influencer = newInfluencer;
         }
 
+        // 海外発送設定を適用（BEブランドの場合）
+        const isInternational = currentBrand === 'BE' && defaultInternationalShipping.enabled;
+
         // 案件を作成
         const { error: campaignError } = await supabase
           .from('campaigns')
@@ -467,6 +603,11 @@ export default function ImportPage() {
               engagement_date: row.engagement_date || null,
               number_of_times: row.number_of_times || 1,
               product_cost: row.product_cost || 800,
+              // 海外発送設定
+              is_international_shipping: isInternational,
+              shipping_country: isInternational ? (row.shipping_country || defaultInternationalShipping.country) : null,
+              international_shipping_cost: isInternational ? (row.international_shipping_cost || defaultInternationalShipping.cost) : null,
+              currency: row.currency || defaultInternationalShipping.currency || 'JPY',
               notes: row.notes || null,
               created_by: user?.id,
             },
@@ -487,13 +628,14 @@ export default function ImportPage() {
       setImportProgress(Math.round(((i + 1) / allData.length) * 100));
     }
 
-    setResult({ success, failed, errors });
+    setResult({ success, failed, skipped, errors });
     setImporting(false);
 
     if (success > 0 && failed === 0) {
-      showToast('success', `${success}件のデータをインポートしました`);
+      const skipMsg = skipped > 0 ? `（${skipped}件スキップ）` : '';
+      showToast('success', `${success}件のデータをインポートしました${skipMsg}`);
     } else if (success > 0) {
-      showToast('warning', `${success}件成功、${failed}件失敗`);
+      showToast('warning', `${success}件成功、${failed}件失敗、${skipped}件スキップ`);
     } else {
       showToast('error', 'インポートに失敗しました');
     }
@@ -508,6 +650,14 @@ export default function ImportPage() {
     setDetectedHeaders([]);
     setColumnMapping({});
     setUnmappedColumns([]);
+    setDuplicates({ inFile: [], inDatabase: [] });
+    setShowInternationalSettings(false);
+    setDefaultInternationalShipping({
+      enabled: false,
+      country: '',
+      cost: 2000,
+      currency: 'JPY',
+    });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -547,6 +697,10 @@ export default function ImportPage() {
     engagement_date: '入力日',
     number_of_times: '回数',
     product_cost: '商品原価・送料',
+    is_international_shipping: '海外発送',
+    shipping_country: '発送先国',
+    international_shipping_cost: '海外送料',
+    currency: '通貨',
     notes: 'メモ',
   };
 
@@ -646,6 +800,169 @@ export default function ImportPage() {
             )}
           </div>
         </div>
+
+        {/* 重複警告 */}
+        {file && (duplicates.inFile.length > 0 || duplicates.inDatabase.length > 0) && (
+          <div className="card border-amber-200 bg-amber-50">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5\" size={20} />
+              <div className="flex-1">
+                <h4 className="font-medium text-amber-900 flex items-center gap-2">
+                  重複データが検出されました
+                  {checkingDuplicates && <Loader2 className="animate-spin" size={16} />}
+                </h4>
+
+                {duplicates.inFile.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm text-amber-800 font-medium">ファイル内の重複:</p>
+                    <ul className="text-sm text-amber-700 mt-1 space-y-1">
+                      {duplicates.inFile.slice(0, 5).map((dup, idx) => (
+                        <li key={idx}>
+                          行{dup.row1}と行{dup.row2}: <span className="font-medium">@{dup.name}</span>
+                        </li>
+                      ))}
+                      {duplicates.inFile.length > 5 && (
+                        <li className="text-amber-600">...他{duplicates.inFile.length - 5}件</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {duplicates.inDatabase.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm text-amber-800 font-medium">データベースとの重複:</p>
+                    <ul className="text-sm text-amber-700 mt-1 space-y-1">
+                      {duplicates.inDatabase.slice(0, 5).map((dup, idx) => (
+                        <li key={idx}>
+                          行{dup.row}: <span className="font-medium">@{dup.name}</span>
+                          （既存{dup.existingCampaigns}件）
+                        </li>
+                      ))}
+                      {duplicates.inDatabase.length > 5 && (
+                        <li className="text-amber-600">...他{duplicates.inDatabase.length - 5}件</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-3 flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-amber-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={skipDuplicates}
+                      onChange={(e) => setSkipDuplicates(e.target.checked)}
+                      className="rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>重複データをスキップしてインポート</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BE用海外発送設定 */}
+        {file && currentBrand === 'BE' && showInternationalSettings && (
+          <div className="card border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Globe className="text-emerald-600" size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-emerald-900 flex items-center gap-2">
+                    <Plane size={16} />
+                    海外発送設定（BEブランド専用）
+                  </h4>
+                  <button
+                    onClick={() => setShowInternationalSettings(false)}
+                    className="text-emerald-600 hover:text-emerald-800 text-sm"
+                  >
+                    閉じる
+                  </button>
+                </div>
+
+                <p className="text-sm text-emerald-700 mt-1">
+                  BEブランドは海外発送が多いため、インポートデータに一括で海外発送設定を適用できます。
+                </p>
+
+                <div className="mt-4 space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={defaultInternationalShipping.enabled}
+                      onChange={(e) => setDefaultInternationalShipping({
+                        ...defaultInternationalShipping,
+                        enabled: e.target.checked,
+                      })}
+                      className="w-5 h-5 rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="font-medium text-emerald-900">インポートデータを海外発送として登録</span>
+                  </label>
+
+                  {defaultInternationalShipping.enabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-8 p-4 bg-white/50 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-1">
+                          発送先国
+                        </label>
+                        <select
+                          value={defaultInternationalShipping.country}
+                          onChange={(e) => setDefaultInternationalShipping({
+                            ...defaultInternationalShipping,
+                            country: e.target.value,
+                          })}
+                          className="input-field text-sm"
+                        >
+                          <option value="">選択してください</option>
+                          {COMMON_COUNTRIES.map(country => (
+                            <option key={country} value={country}>{country}</option>
+                          ))}
+                          <option value="その他">その他</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-1">
+                          海外発送送料（円）
+                        </label>
+                        <input
+                          type="number"
+                          value={defaultInternationalShipping.cost}
+                          onChange={(e) => setDefaultInternationalShipping({
+                            ...defaultInternationalShipping,
+                            cost: parseInt(e.target.value) || 0,
+                          })}
+                          className="input-field text-sm"
+                          min={0}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-emerald-800 mb-1">
+                          通貨
+                        </label>
+                        <select
+                          value={defaultInternationalShipping.currency}
+                          onChange={(e) => setDefaultInternationalShipping({
+                            ...defaultInternationalShipping,
+                            currency: e.target.value,
+                          })}
+                          className="input-field text-sm"
+                        >
+                          <option value="JPY">JPY（日本円）</option>
+                          <option value="USD">USD（米ドル）</option>
+                          <option value="KRW">KRW（韓国ウォン）</option>
+                          <option value="CNY">CNY（人民元）</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* カラムマッピング設定 */}
         {file && showMapping && (
@@ -813,7 +1130,7 @@ export default function ImportPage() {
           <div className="card">
             <h3 className="font-bold text-gray-900 mb-4">インポート結果</h3>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="flex items-center gap-3 p-4 bg-green-50 rounded-xl">
                 <Check className="text-green-600" size={24} />
                 <div>
@@ -832,6 +1149,17 @@ export default function ImportPage() {
                   </p>
                 </div>
               </div>
+              {result.skipped > 0 && (
+                <div className="flex items-center gap-3 p-4 bg-amber-50 rounded-xl">
+                  <AlertTriangle className="text-amber-600" size={24} />
+                  <div>
+                    <p className="text-sm text-gray-500">スキップ（重複）</p>
+                    <p className="text-2xl font-bold text-amber-600">
+                      {result.skipped}件
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {result.errors.length > 0 && (
