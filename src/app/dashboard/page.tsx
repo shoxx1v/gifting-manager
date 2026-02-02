@@ -60,6 +60,8 @@ interface Stats {
     total_campaigns: number;
     total_amount: number;
     cost_per_like: number;
+    score: number;
+    rank: string;
   }[];
   itemStats: {
     item_code: string;
@@ -186,6 +188,7 @@ export default function DashboardPage() {
         total_comments: number;
         total_campaigns: number;
         total_amount: number;
+        agreed_campaigns: number;
       }>();
       campaigns.forEach((c) => {
         if (c.influencer) {
@@ -196,6 +199,7 @@ export default function DashboardPage() {
             total_comments: 0,
             total_campaigns: 0,
             total_amount: 0,
+            agreed_campaigns: 0,
           };
           influencerMap.set(key, {
             insta_name: c.influencer.insta_name,
@@ -203,6 +207,7 @@ export default function DashboardPage() {
             total_comments: existing.total_comments + (c.comments || 0),
             total_campaigns: existing.total_campaigns + 1,
             total_amount: existing.total_amount + (c.agreed_amount || 0),
+            agreed_campaigns: existing.agreed_campaigns + (c.status === 'agree' ? 1 : 0),
           });
         }
       });
@@ -241,11 +246,42 @@ export default function DashboardPage() {
           .sort((a, b) => a.month.localeCompare(b.month))
           .slice(-12),
         influencerRanking: Array.from(influencerMap.values())
-          .map((inf) => ({
-            ...inf,
-            cost_per_like: inf.total_likes > 0 ? inf.total_amount / inf.total_likes : 0,
-          }))
-          .sort((a, b) => b.total_likes - a.total_likes)
+          .map((inf) => {
+            const costPerLike = inf.total_likes > 0 ? inf.total_amount / inf.total_likes : 0;
+            const avgLikes = inf.total_campaigns > 0 ? inf.total_likes / inf.total_campaigns : 0;
+            const agreementRate = inf.total_campaigns > 0 ? (inf.agreed_campaigns / inf.total_campaigns) * 100 : 0;
+
+            // スコア計算（詳細ページと同じロジック）
+            let score = 0;
+            if (inf.total_campaigns > 0) {
+              const engagementScore = Math.min(100, (avgLikes / 1000) * 100);
+              const efficiencyScore = costPerLike > 0
+                ? Math.max(0, Math.min(100, ((200 - costPerLike) / 150) * 100))
+                : 50;
+              const reliabilityScore = agreementRate;
+              const experienceScore = Math.min(100, (inf.total_campaigns / 10) * 100);
+
+              score = Math.round(
+                engagementScore * 0.35 +
+                efficiencyScore * 0.30 +
+                reliabilityScore * 0.20 +
+                experienceScore * 0.15
+              );
+            }
+
+            let rank = 'C';
+            if (score >= 75) rank = 'S';
+            else if (score >= 55) rank = 'A';
+            else if (score >= 35) rank = 'B';
+
+            return {
+              ...inf,
+              cost_per_like: costPerLike,
+              score,
+              rank,
+            };
+          })
+          .sort((a, b) => b.score - a.score)
           .slice(0, 10),
         itemStats: Array.from(itemMap.entries())
           .map(([item_code, data]) => ({ item_code, ...data }))
@@ -483,8 +519,16 @@ export default function DashboardPage() {
                     {getRankIcon(index)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">@{inf.insta_name}</p>
-                    <p className="text-xs text-gray-500">{inf.total_campaigns}件</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">@{inf.insta_name}</p>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                        inf.rank === 'S' ? 'bg-amber-100 text-amber-700' :
+                        inf.rank === 'A' ? 'bg-purple-100 text-purple-700' :
+                        inf.rank === 'B' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>{inf.rank}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">{inf.total_campaigns}件 | スコア: {inf.score}</p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-pink-500">
