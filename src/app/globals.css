@@ -332,3 +332,44 @@ html {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
+
+/* Safe area for iOS devices */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* モバイル最適化 */
+@media (max-width: 1023px) {
+  /* タッチフレンドリーなボタンサイズ */
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+  }
+
+  /* テーブルのスクロール可能なコンテナ */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* モバイルでのフォーム入力 */
+  .input-field {
+    font-size: 16px; /* iOS zoom防止 */
+  }
+}
+
+/* タッチデバイス用のホバー効果無効化 */
+@media (hover: none) {
+  .hover\:bg-gray-50:hover {
+    background-color: transparent;
+  }
+}
+
+/* プルリフレッシュのような効果を防止 */
+html {
+  overscroll-behavior-y: contain;
+}

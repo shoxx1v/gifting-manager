@@ -151,3 +151,62 @@ export interface ImportRow {
   number_of_times?: number;
   notes?: string;
 }
+
+// チーム・担当者機能用
+export interface TeamMember {
+  id: string;
+  display_name: string;
+  email: string;
+  role: 'admin' | 'editor' | 'viewer';
+  avatar_url?: string;
+  created_at: string;
+}
+
+export interface CampaignComment {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user?: UserProfile;
+}
+
+export interface CampaignAssignment {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  assigned_at: string;
+  user?: UserProfile;
+}
+
+// インフルエンサースコアリング用
+export interface InfluencerScore {
+  influencer_id: string;
+  insta_name: string;
+  overall_score: number; // 0-100
+  engagement_score: number;
+  cost_efficiency_score: number;
+  reliability_score: number;
+  total_campaigns: number;
+  avg_likes: number;
+  avg_cost_per_like: number;
+  agreement_rate: number;
+  on_time_rate: number;
+  tags: string[];
+  is_favorite: boolean;
+  is_blacklisted: boolean;
+  last_campaign_date: string | null;
+}
+
+// カレンダーイベント用
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  type: 'post' | 'deadline' | 'sale' | 'meeting';
+  campaign_id?: string;
+  influencer_name?: string;
+  color?: string;
+}
