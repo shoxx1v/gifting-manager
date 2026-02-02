@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Campaign } from '@/types';
 import MainLayout from '@/components/layout/MainLayout';
@@ -30,6 +30,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
+  MessageCircle,
+  Send,
+  RefreshCw,
+  Bot,
+  User,
 } from 'lucide-react';
 
 interface Insight {
@@ -65,6 +70,18 @@ interface SearchResult {
   relevance: number;
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface AIAnalysisResult {
+  insights: string[];
+  recommendations: string[];
+  summary: string;
+}
+
 export default function AIInsightsPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
@@ -75,10 +92,22 @@ export default function AIInsightsPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
 
+  // Claude AI分析
+  const [aiAnalysis, setAiAnalysis] = useState<AIAnalysisResult | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+
   // 自然言語検索
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [aiSearchExplanation, setAiSearchExplanation] = useState('');
+
+  // AIチャット
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -94,7 +123,7 @@ export default function AIInsightsPage() {
 
       setCampaigns(data || []);
 
-      // AI分析を実行
+      // ローカルAI分析を実行
       if (data) {
         const generatedInsights = generateInsights(data);
         const generatedRecommendations = generateRecommendations(data);
@@ -119,21 +148,249 @@ export default function AIInsightsPage() {
     }
   }, [user, fetchData]);
 
-  // インサイト生成
+  // Claude APIでAI分析
+  const runClaudeAnalysis = async () => {
+    if (campaigns.length === 0) {
+      showToast('warning', '分析するキャンペーンデータがありません');
+      return;
+    }
+
+    setAiAnalyzing(true);
+    try {
+      const campaignData = campaigns.map(c => ({
+        influencer: c.influencer?.insta_name || '不明',
+        brand: c.brand || '',
+        amount: c.agreed_amount || 0,
+        likes: c.likes || 0,
+        comments: c.comments || 0,
+        status: c.status,
+        postDate: c.post_date,
+      }));
+
+      const response = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaigns: campaignData }),
+      });
+
+      if (!response.ok) {
+        throw new Error('AI分析に失敗しました');
+      }
+
+      const result = await response.json();
+      setAiAnalysis(result);
+      showToast('success', 'Claude AIによる分析が完了しました');
+    } catch (err) {
+      console.error('AI Analysis Error:', err);
+      showToast('error', 'AI分析中にエラーが発生しました');
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  // Claude APIで自然言語検索
+  const handleAISearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setAiSearchExplanation('');
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const campaignData = campaigns.map(c => ({
+        id: c.id,
+        influencer: c.influencer?.insta_name || '不明',
+        brand: c.brand || '',
+        amount: c.agreed_amount || 0,
+        likes: c.likes || 0,
+        comments: c.comments || 0,
+        status: c.status,
+        postDate: c.post_date,
+      }));
+
+      const response = await fetch('/api/ai/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, campaigns: campaignData }),
+      });
+
+      if (!response.ok) {
+        // フォールバック：ローカル検索
+        handleLocalSearch();
+        return;
+      }
+
+      const result = await response.json();
+      setAiSearchExplanation(result.explanation || '');
+
+      // 結果をSearchResult形式に変換
+      const aiResults: SearchResult[] = [];
+      if (result.results && Array.isArray(result.results)) {
+        result.results.forEach((influencerName: string, index: number) => {
+          const campaign = campaigns.find(c =>
+            c.influencer?.insta_name?.toLowerCase() === influencerName.toLowerCase()
+          );
+          if (campaign) {
+            aiResults.push({
+              type: 'campaign',
+              id: campaign.id,
+              title: `@${campaign.influencer?.insta_name || '不明'} - ${campaign.brand || ''}`,
+              subtitle: `¥${(campaign.agreed_amount || 0).toLocaleString()} | ${campaign.likes?.toLocaleString() || 0}いいね`,
+              relevance: result.results.length - index,
+            });
+          }
+        });
+      }
+
+      setSearchResults(aiResults);
+    } catch (err) {
+      console.error('AI Search Error:', err);
+      // フォールバック：ローカル検索
+      handleLocalSearch();
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // ローカル検索（フォールバック）
+  const handleLocalSearch = useCallback(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const results: SearchResult[] = [];
+    const keywords = query.split(/\s+/);
+
+    campaigns.forEach(c => {
+      let relevance = 0;
+      const searchableText = [
+        c.influencer?.insta_name,
+        c.brand,
+        c.item_code,
+        c.notes,
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      keywords.forEach(keyword => {
+        if (searchableText.includes(keyword)) relevance += 1;
+        if (keyword.match(/^\d+円?$/)) {
+          const amount = parseInt(keyword.replace('円', ''));
+          if (c.agreed_amount === amount || c.offered_amount === amount) relevance += 2;
+        }
+        if (['合意', 'agree', 'ok'].includes(keyword) && c.status === 'agree') relevance += 2;
+        if (['保留', 'pending', '検討'].includes(keyword) && c.status === 'pending') relevance += 2;
+        if (['不合意', 'disagree', 'ng'].includes(keyword) && c.status === 'disagree') relevance += 2;
+        if (['高い', '高額', '高コスト'].includes(keyword) && (c.agreed_amount || 0) > 50000) relevance += 2;
+        if (['安い', '低額', '低コスト'].includes(keyword) && (c.agreed_amount || 0) < 20000) relevance += 2;
+        if (['人気', '高エンゲージメント', '好調'].includes(keyword) && (c.likes || 0) > 1000) relevance += 2;
+      });
+
+      if (relevance > 0) {
+        results.push({
+          type: 'campaign',
+          id: c.id,
+          title: `@${c.influencer?.insta_name || '不明'} - ${c.brand || ''}`,
+          subtitle: `${c.item_code || ''} | ¥${(c.agreed_amount || 0).toLocaleString()} | ${c.likes?.toLocaleString() || 0}いいね`,
+          relevance,
+        });
+      }
+    });
+
+    results.sort((a, b) => b.relevance - a.relevance);
+    setSearchResults(results.slice(0, 10));
+    setAiSearchExplanation('');
+  }, [searchQuery, campaigns]);
+
+  // 検索のデバウンス
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      handleAISearch();
+    }, 500);
+
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
+
+  // AIチャット送信
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: chatInput,
+      timestamp: new Date(),
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const totalCampaigns = campaigns.length;
+      const totalSpent = campaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0);
+      const totalLikes = campaigns.reduce((sum, c) => sum + (c.likes || 0), 0);
+      const topInfluencers = Array.from(new Set(campaigns.map(c => c.influencer?.insta_name).filter(Boolean))).slice(0, 5) as string[];
+
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: chatInput,
+          context: {
+            totalCampaigns,
+            totalSpent,
+            totalLikes,
+            topInfluencers,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('チャットエラー');
+      }
+
+      const result = await response.json();
+
+      const assistantMessage: ChatMessage = {
+        role: 'assistant',
+        content: result.response,
+        timestamp: new Date(),
+      };
+
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('Chat Error:', err);
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: '申し訳ございません。応答を生成できませんでした。しばらく経ってからお試しください。',
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // チャット自動スクロール
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // インサイト生成（ローカル）
   const generateInsights = (data: Campaign[]): Insight[] => {
     const insights: Insight[] = [];
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-    // 過去30日のデータ
     const recentCampaigns = data.filter(c => new Date(c.created_at) >= thirtyDaysAgo);
     const previousCampaigns = data.filter(c => {
       const date = new Date(c.created_at);
       return date >= sixtyDaysAgo && date < thirtyDaysAgo;
     });
 
-    // 1. 全体のパフォーマンス
     const totalLikes = data.reduce((sum, c) => sum + (c.likes || 0), 0);
     const totalSpent = data.reduce((sum, c) => sum + (c.agreed_amount || 0), 0);
     const avgCostPerLike = totalLikes > 0 ? totalSpent / totalLikes : 0;
@@ -153,7 +410,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // 2. 合意率
     const agreedCount = data.filter(c => c.status === 'agree').length;
     const totalCount = data.length;
     const agreementRate = totalCount > 0 ? (agreedCount / totalCount) * 100 : 0;
@@ -173,7 +429,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // 3. 直近のトレンド
     if (recentCampaigns.length > 0 && previousCampaigns.length > 0) {
       const recentAvgLikes = recentCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0) / recentCampaigns.length;
       const previousAvgLikes = previousCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0) / previousCampaigns.length;
@@ -193,7 +448,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // 4. トップパフォーマー
     const topInfluencers = new Map<string, { likes: number; cost: number; name: string }>();
     data.forEach(c => {
       if (c.influencer) {
@@ -222,7 +476,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // 5. 投稿予定リマインダー
     const upcomingPosts = data.filter(c => {
       if (!c.desired_post_date || c.post_date) return false;
       const postDate = new Date(c.desired_post_date);
@@ -243,11 +496,10 @@ export default function AIInsightsPage() {
     return insights.sort((a, b) => a.priority - b.priority);
   };
 
-  // レコメンデーション生成
+  // レコメンデーション生成（ローカル）
   const generateRecommendations = (data: Campaign[]): Recommendation[] => {
     const recommendations: Recommendation[] = [];
 
-    // インフルエンサー別のパフォーマンス分析
     const influencerStats = new Map<string, {
       likes: number;
       cost: number;
@@ -273,7 +525,6 @@ export default function AIInsightsPage() {
       .map(i => ({ ...i, efficiency: i.cost / i.likes }))
       .sort((a, b) => a.efficiency - b.efficiency);
 
-    // 高効率インフルエンサーの活用
     if (sortedInfluencers.length >= 3) {
       const topThree = sortedInfluencers.slice(0, 3);
       recommendations.push({
@@ -285,7 +536,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // 予算最適化
     const avgCost = data.reduce((sum, c) => sum + (c.agreed_amount || 0), 0) / data.length;
     const highCostCampaigns = data.filter(c => (c.agreed_amount || 0) > avgCost * 1.5);
 
@@ -298,7 +548,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // タイミング最適化
     const completedCampaigns = data.filter(c => c.post_date && c.likes);
     const byMonth = new Map<number, { count: number; avgLikes: number }>();
 
@@ -326,7 +575,6 @@ export default function AIInsightsPage() {
       });
     }
 
-    // パフォーマンス改善
     const lowEngagementRate = data.filter(c => {
       if (!c.likes || !c.agreed_amount) return false;
       return c.agreed_amount / c.likes > 300;
@@ -344,18 +592,16 @@ export default function AIInsightsPage() {
     return recommendations;
   };
 
-  // 異常値検出
+  // 異常値検出（ローカル）
   const detectAnomalies = (data: Campaign[]): Anomaly[] => {
     const anomalies: Anomaly[] = [];
 
-    // 統計値の計算
     const completedCampaigns = data.filter(c => c.agreed_amount && c.likes);
     if (completedCampaigns.length < 5) return anomalies;
 
     const avgCost = completedCampaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0) / completedCampaigns.length;
     const avgLikes = completedCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0) / completedCampaigns.length;
 
-    // 標準偏差
     const costVariance = completedCampaigns.reduce((sum, c) => sum + Math.pow((c.agreed_amount || 0) - avgCost, 2), 0) / completedCampaigns.length;
     const costStdDev = Math.sqrt(costVariance);
 
@@ -365,7 +611,6 @@ export default function AIInsightsPage() {
     data.forEach(c => {
       if (!c.influencer) return;
 
-      // 高コスト異常
       if (c.agreed_amount && c.agreed_amount > avgCost + 2 * costStdDev) {
         anomalies.push({
           type: 'high_cost',
@@ -376,7 +621,6 @@ export default function AIInsightsPage() {
         });
       }
 
-      // 低エンゲージメント異常
       if (c.likes !== null && c.likes < avgLikes - 2 * likesStdDev && c.likes >= 0) {
         anomalies.push({
           type: 'low_engagement',
@@ -387,7 +631,6 @@ export default function AIInsightsPage() {
         });
       }
 
-      // 投稿遅延
       if (c.desired_post_date && !c.post_date && c.status === 'agree') {
         const desiredDate = new Date(c.desired_post_date);
         const now = new Date();
@@ -411,82 +654,14 @@ export default function AIInsightsPage() {
     });
   };
 
-  // 自然言語検索
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    setSearching(true);
-    const query = searchQuery.toLowerCase();
-    const results: SearchResult[] = [];
-
-    // キーワード解析
-    const keywords = query.split(/\s+/);
-
-    campaigns.forEach(c => {
-      let relevance = 0;
-      const searchableText = [
-        c.influencer?.insta_name,
-        c.brand,
-        c.item_code,
-        c.notes,
-      ].filter(Boolean).join(' ').toLowerCase();
-
-      keywords.forEach(keyword => {
-        if (searchableText.includes(keyword)) relevance += 1;
-
-        // 数値検索
-        if (keyword.match(/^\d+円?$/)) {
-          const amount = parseInt(keyword.replace('円', ''));
-          if (c.agreed_amount === amount || c.offered_amount === amount) relevance += 2;
-        }
-
-        // ステータス検索
-        if (['合意', 'agree', 'ok'].includes(keyword) && c.status === 'agree') relevance += 2;
-        if (['保留', 'pending', '検討'].includes(keyword) && c.status === 'pending') relevance += 2;
-        if (['不合意', 'disagree', 'ng'].includes(keyword) && c.status === 'disagree') relevance += 2;
-
-        // 特殊クエリ
-        if (['高い', '高額', '高コスト'].includes(keyword) && (c.agreed_amount || 0) > 50000) relevance += 2;
-        if (['安い', '低額', '低コスト'].includes(keyword) && (c.agreed_amount || 0) < 20000) relevance += 2;
-        if (['人気', '高エンゲージメント', '好調'].includes(keyword) && (c.likes || 0) > 1000) relevance += 2;
-      });
-
-      if (relevance > 0) {
-        results.push({
-          type: 'campaign',
-          id: c.id,
-          title: `@${c.influencer?.insta_name || '不明'} - ${c.brand || ''}`,
-          subtitle: `${c.item_code || ''} | ¥${(c.agreed_amount || 0).toLocaleString()} | ${c.likes?.toLocaleString() || 0}いいね`,
-          relevance,
-        });
-      }
-    });
-
-    // 関連度でソート
-    results.sort((a, b) => b.relevance - a.relevance);
-    setSearchResults(results.slice(0, 10));
-    setSearching(false);
-  }, [searchQuery, campaigns]);
-
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      handleSearch();
-    }, 300);
-
-    return () => clearTimeout(debounce);
-  }, [searchQuery, handleSearch]);
-
   const getImpactBadge = (impact: 'high' | 'medium' | 'low') => {
     switch (impact) {
       case 'high':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800';
       case 'medium':
-        return 'bg-amber-100 text-amber-700 border-amber-200';
+        return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800';
       case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800';
     }
   };
 
@@ -523,19 +698,187 @@ export default function AIInsightsPage() {
               <Brain className="text-white" size={24} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">AIインサイト</h1>
-              <p className="text-gray-500 mt-0.5">データ分析・レコメンデーション・異常検知</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AIインサイト</h1>
+              <p className="text-gray-500 dark:text-gray-400 mt-0.5">Claude AI搭載 - データ分析・レコメンデーション</p>
             </div>
           </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={runClaudeAnalysis}
+              disabled={aiAnalyzing || campaigns.length === 0}
+              className="btn-primary flex items-center gap-2"
+            >
+              {aiAnalyzing ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  AI分析中...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={18} />
+                  Claude AI分析
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className={`btn-secondary flex items-center gap-2 ${showChat ? 'bg-purple-100 dark:bg-purple-900/30' : ''}`}
+            >
+              <MessageCircle size={18} />
+              AIチャット
+            </button>
+          </div>
         </div>
+
+        {/* AIチャット */}
+        {showChat && (
+          <div className="card border-purple-200 dark:border-purple-800">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Bot className="text-purple-600 dark:text-purple-400" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">AIアシスタント</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">キャンペーンについて質問してください</p>
+              </div>
+            </div>
+
+            <div className="h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-4 space-y-4">
+              {chatMessages.length === 0 && (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                  <Bot size={40} className="mx-auto mb-2 opacity-50" />
+                  <p>AIアシスタントに質問してみてください</p>
+                  <p className="text-sm mt-1">例：「ROIを改善するにはどうすればいい？」</p>
+                </div>
+              )}
+
+              {chatMessages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  {msg.role === 'assistant' && (
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg h-fit">
+                      <Bot className="text-purple-600 dark:text-purple-400" size={16} />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[80%] p-3 rounded-xl ${
+                      msg.role === 'user'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                  {msg.role === 'user' && (
+                    <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg h-fit">
+                      <User className="text-primary-600 dark:text-primary-400" size={16} />
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div className="flex gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg h-fit">
+                    <Bot className="text-purple-600 dark:text-purple-400" size={16} />
+                  </div>
+                  <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-xl">
+                    <Loader2 className="animate-spin text-gray-400" size={20} />
+                  </div>
+                </div>
+              )}
+
+              <div ref={chatEndRef} />
+            </div>
+
+            <form onSubmit={handleChatSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="質問を入力..."
+                className="input-field flex-1"
+                disabled={chatLoading}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || chatLoading}
+                className="btn-primary"
+              >
+                <Send size={18} />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Claude AI分析結果 */}
+        {aiAnalysis && (
+          <div className="card border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                <Sparkles className="text-violet-600 dark:text-violet-400" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">Claude AI分析結果</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">高度なAI分析による洞察</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {/* サマリー */}
+              <div className="p-4 bg-white dark:bg-gray-800 rounded-xl border border-violet-200 dark:border-violet-800">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <Target className="text-violet-500" size={18} />
+                  サマリー
+                </h4>
+                <p className="text-gray-700 dark:text-gray-300">{aiAnalysis.summary}</p>
+              </div>
+
+              {/* インサイト */}
+              <div>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Lightbulb className="text-amber-500" size={18} />
+                  インサイト
+                </h4>
+                <ul className="space-y-2">
+                  {aiAnalysis.insights.map((insight, index) => (
+                    <li key={index} className="flex items-start gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg">
+                      <CheckCircle className="text-green-500 mt-0.5 flex-shrink-0" size={16} />
+                      <span className="text-gray-700 dark:text-gray-300">{insight}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* レコメンデーション */}
+              <div>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Zap className="text-blue-500" size={18} />
+                  レコメンデーション
+                </h4>
+                <ul className="space-y-2">
+                  {aiAnalysis.recommendations.map((rec, index) => (
+                    <li key={index} className="flex items-start gap-2 p-3 bg-white dark:bg-gray-800 rounded-lg">
+                      <ArrowUpRight className="text-blue-500 mt-0.5 flex-shrink-0" size={16} />
+                      <span className="text-gray-700 dark:text-gray-300">{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 自然言語検索 */}
         <div className="card">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Search className="text-purple-600" size={20} />
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+              <Search className="text-purple-600 dark:text-purple-400" size={20} />
             </div>
-            <h3 className="font-bold text-gray-900">スマート検索</h3>
+            <h3 className="font-bold text-gray-900 dark:text-white">AIスマート検索</h3>
           </div>
 
           <div className="relative">
@@ -552,22 +895,31 @@ export default function AIInsightsPage() {
             )}
           </div>
 
+          {aiSearchExplanation && (
+            <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <p className="text-sm text-purple-700 dark:text-purple-300">
+                <Bot className="inline mr-1" size={14} />
+                {aiSearchExplanation}
+              </p>
+            </div>
+          )}
+
           {searchResults.length > 0 && (
             <div className="mt-4 space-y-2">
               {searchResults.map(result => (
                 <div
                   key={result.id}
-                  className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                 >
-                  <p className="font-medium text-gray-900">{result.title}</p>
-                  <p className="text-sm text-gray-500">{result.subtitle}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{result.title}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{result.subtitle}</p>
                 </div>
               ))}
             </div>
           )}
 
           {searchQuery && searchResults.length === 0 && !searching && (
-            <p className="mt-4 text-center text-gray-500 text-sm">
+            <p className="mt-4 text-center text-gray-500 dark:text-gray-400 text-sm">
               検索結果がありません
             </p>
           )}
@@ -585,10 +937,10 @@ export default function AIInsightsPage() {
               {/* インサイト */}
               <div className="card">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Sparkles className="text-blue-600" size={20} />
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Sparkles className="text-blue-600 dark:text-blue-400" size={20} />
                   </div>
-                  <h3 className="font-bold text-gray-900">キーインサイト</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">キーインサイト</h3>
                 </div>
 
                 <div className="space-y-4">
@@ -596,10 +948,10 @@ export default function AIInsightsPage() {
                     <div
                       key={index}
                       className={`p-4 rounded-xl border ${
-                        insight.type === 'success' ? 'bg-green-50 border-green-200' :
-                        insight.type === 'warning' ? 'bg-amber-50 border-amber-200' :
-                        insight.type === 'tip' ? 'bg-purple-50 border-purple-200' :
-                        'bg-blue-50 border-blue-200'
+                        insight.type === 'success' ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' :
+                        insight.type === 'warning' ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800' :
+                        insight.type === 'tip' ? 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800' :
+                        'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -608,22 +960,22 @@ export default function AIInsightsPage() {
                           {insight.type === 'warning' && <AlertTriangle className="text-amber-500" size={18} />}
                           {insight.type === 'tip' && <Lightbulb className="text-purple-500" size={18} />}
                           {insight.type === 'info' && <Target className="text-blue-500" size={18} />}
-                          <span className="font-medium text-gray-900">{insight.title}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{insight.title}</span>
                         </div>
                         {insight.value && (
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-gray-900">{insight.value}</span>
+                            <span className="font-bold text-gray-900 dark:text-white">{insight.value}</span>
                             {insight.trend === 'up' && <ArrowUpRight className="text-green-500" size={16} />}
                             {insight.trend === 'down' && <ArrowDownRight className="text-red-500" size={16} />}
                           </div>
                         )}
                       </div>
-                      <p className="mt-2 text-sm text-gray-600">{insight.description}</p>
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{insight.description}</p>
                     </div>
                   ))}
 
                   {insights.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">
+                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                       データが不足しています
                     </p>
                   )}
@@ -633,17 +985,17 @@ export default function AIInsightsPage() {
               {/* レコメンデーション */}
               <div className="card">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Lightbulb className="text-green-600" size={20} />
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <Lightbulb className="text-green-600 dark:text-green-400" size={20} />
                   </div>
-                  <h3 className="font-bold text-gray-900">AIレコメンデーション</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">AIレコメンデーション</h3>
                 </div>
 
                 <div className="space-y-4">
                   {recommendations.map((rec, index) => (
                     <div
                       key={index}
-                      className="p-4 bg-gray-50 rounded-xl border border-gray-200"
+                      className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700"
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -651,15 +1003,15 @@ export default function AIInsightsPage() {
                           {rec.category === 'budget' && <DollarSign className="text-green-500" size={18} />}
                           {rec.category === 'timing' && <Clock className="text-blue-500" size={18} />}
                           {rec.category === 'performance' && <TrendingUp className="text-pink-500" size={18} />}
-                          <span className="font-medium text-gray-900">{rec.title}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{rec.title}</span>
                         </div>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getImpactBadge(rec.impact)}`}>
                           {rec.impact === 'high' ? '高' : rec.impact === 'medium' ? '中' : '低'}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">{rec.description}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{rec.description}</p>
                       {rec.action && (
-                        <button className="mt-3 text-sm text-primary-600 font-medium hover:underline">
+                        <button className="mt-3 text-sm text-primary-600 dark:text-primary-400 font-medium hover:underline">
                           {rec.action} →
                         </button>
                       )}
@@ -667,7 +1019,7 @@ export default function AIInsightsPage() {
                   ))}
 
                   {recommendations.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">
+                    <p className="text-center text-gray-500 dark:text-gray-400 py-8">
                       レコメンデーションはありません
                     </p>
                   )}
@@ -677,14 +1029,14 @@ export default function AIInsightsPage() {
 
             {/* 異常値検出 */}
             {anomalies.length > 0 && (
-              <div className="card border-amber-200 bg-amber-50/30">
+              <div className="card border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/10">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 bg-amber-100 rounded-lg">
-                    <AlertTriangle className="text-amber-600" size={20} />
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <AlertTriangle className="text-amber-600 dark:text-amber-400" size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">異常値検出</h3>
-                    <p className="text-sm text-gray-500">{anomalies.length}件の異常を検出しました</p>
+                    <h3 className="font-bold text-gray-900 dark:text-white">異常値検出</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{anomalies.length}件の異常を検出しました</p>
                   </div>
                 </div>
 
@@ -693,22 +1045,22 @@ export default function AIInsightsPage() {
                     <div
                       key={index}
                       className={`p-4 rounded-xl border ${
-                        anomaly.severity === 'critical' ? 'bg-red-50 border-red-200' :
-                        anomaly.severity === 'warning' ? 'bg-amber-50 border-amber-200' :
-                        'bg-blue-50 border-blue-200'
+                        anomaly.severity === 'critical' ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' :
+                        anomaly.severity === 'warning' ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800' :
+                        'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
                       }`}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         {getSeverityIcon(anomaly.severity)}
-                        <span className="font-medium text-gray-900">@{anomaly.influencer}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">@{anomaly.influencer}</span>
                       </div>
-                      <p className="text-sm text-gray-600">{anomaly.description}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{anomaly.description}</p>
                     </div>
                   ))}
                 </div>
 
                 {anomalies.length > 6 && (
-                  <p className="mt-4 text-center text-gray-500 text-sm">
+                  <p className="mt-4 text-center text-gray-500 dark:text-gray-400 text-sm">
                     他 {anomalies.length - 6} 件の異常があります
                   </p>
                 )}
@@ -719,48 +1071,48 @@ export default function AIInsightsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="stat-card">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <BarChart3 className="text-blue-600" size={20} />
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <BarChart3 className="text-blue-600 dark:text-blue-400" size={20} />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">分析対象</p>
-                    <p className="text-xl font-bold text-gray-900">{campaigns.length}件</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">分析対象</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{campaigns.length}件</p>
                   </div>
                 </div>
               </div>
 
               <div className="stat-card">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Sparkles className="text-green-600" size={20} />
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <Sparkles className="text-green-600 dark:text-green-400" size={20} />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">インサイト</p>
-                    <p className="text-xl font-bold text-green-600">{insights.length}件</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">インサイト</p>
+                    <p className="text-xl font-bold text-green-600 dark:text-green-400">{insights.length}件</p>
                   </div>
                 </div>
               </div>
 
               <div className="stat-card">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Lightbulb className="text-purple-600" size={20} />
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <Lightbulb className="text-purple-600 dark:text-purple-400" size={20} />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">提案</p>
-                    <p className="text-xl font-bold text-purple-600">{recommendations.length}件</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">提案</p>
+                    <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{recommendations.length}件</p>
                   </div>
                 </div>
               </div>
 
               <div className="stat-card">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 rounded-lg">
-                    <AlertTriangle className="text-amber-600" size={20} />
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <AlertTriangle className="text-amber-600 dark:text-amber-400" size={20} />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">要注意</p>
-                    <p className="text-xl font-bold text-amber-600">{anomalies.length}件</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">要注意</p>
+                    <p className="text-xl font-bold text-amber-600 dark:text-amber-400">{anomalies.length}件</p>
                   </div>
                 </div>
               </div>
