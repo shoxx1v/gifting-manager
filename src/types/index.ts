@@ -46,7 +46,6 @@ export interface Campaign {
   is_international_shipping: boolean; // 海外発送フラグ
   shipping_country: string | null; // 発送先国
   international_shipping_cost: number | null; // 海外発送送料
-  currency: string; // 通貨コード（JPY, USD等）
   notes: string | null;
   created_by: string | null; // 作成者ID
   updated_by: string | null; // 最終更新者ID
@@ -137,7 +136,6 @@ export interface CampaignFormData {
   is_international_shipping: boolean;
   shipping_country: string;
   international_shipping_cost: number;
-  currency: string;
   notes: string;
 }
 
@@ -178,7 +176,6 @@ export interface ImportRow {
   is_international_shipping?: boolean;
   shipping_country?: string;
   international_shipping_cost?: number;
-  currency?: string;
   notes?: string;
 }
 

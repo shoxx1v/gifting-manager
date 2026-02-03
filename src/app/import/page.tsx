@@ -101,8 +101,14 @@ export default function ImportPage() {
     enabled: false,
     country: '',
     cost: 2000,
-    currency: 'JPY',
   });
+
+  // バリデーションエラー
+  const [validationErrors, setValidationErrors] = useState<{
+    row: number;
+    name: string;
+    errors: string[];
+  }[]>([]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -140,6 +146,9 @@ export default function ImportPage() {
 
       // 重複チェックを実行
       await checkDuplicates(mappedData);
+
+      // バリデーションチェック（枚数・セール日必須）
+      validateRequiredFields(mappedData);
 
       // BEブランドの場合、海外発送設定を表示
       if (currentBrand === 'BE') {
@@ -486,6 +495,36 @@ export default function ImportPage() {
     setCheckingDuplicates(false);
   };
 
+  // 必須フィールドのバリデーション
+  const validateRequiredFields = (data: ImportRow[]) => {
+    const errors: { row: number; name: string; errors: string[] }[] = [];
+
+    data.forEach((row, index) => {
+      const rowErrors: string[] = [];
+      const name = row.insta_name || row.tiktok_name || '不明';
+
+      // 枚数チェック
+      if (!row.item_quantity || row.item_quantity <= 0) {
+        rowErrors.push('枚数が未入力');
+      }
+
+      // セール日チェック
+      if (!row.sale_date) {
+        rowErrors.push('セール日が未入力');
+      }
+
+      if (rowErrors.length > 0) {
+        errors.push({
+          row: index + 1,
+          name,
+          errors: rowErrors,
+        });
+      }
+    });
+
+    setValidationErrors(errors);
+  };
+
   // マッピング変更時にデータを再変換
   const handleMappingChange = (field: string, header: string) => {
     const newMapping = { ...columnMapping, [field]: header };
@@ -603,11 +642,10 @@ export default function ImportPage() {
               engagement_date: row.engagement_date || null,
               number_of_times: row.number_of_times || 1,
               product_cost: row.product_cost || 800,
-              // 海外発送設定
+              // 海外発送設定（通貨は不要）
               is_international_shipping: isInternational,
               shipping_country: isInternational ? (row.shipping_country || defaultInternationalShipping.country) : null,
               international_shipping_cost: isInternational ? (row.international_shipping_cost || defaultInternationalShipping.cost) : null,
-              currency: row.currency || defaultInternationalShipping.currency || 'JPY',
               notes: row.notes || null,
               created_by: user?.id,
             },
@@ -651,12 +689,12 @@ export default function ImportPage() {
     setColumnMapping({});
     setUnmappedColumns([]);
     setDuplicates({ inFile: [], inDatabase: [] });
+    setValidationErrors([]);
     setShowInternationalSettings(false);
     setDefaultInternationalShipping({
       enabled: false,
       country: '',
       cost: 2000,
-      currency: 'JPY',
     });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -861,6 +899,44 @@ export default function ImportPage() {
           </div>
         )}
 
+        {/* バリデーションエラー（枚数・セール日必須） */}
+        {file && validationErrors.length > 0 && (
+          <div className="card border-red-200 bg-red-50">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <h4 className="font-medium text-red-900">
+                  必須項目が入力されていない行があります
+                </h4>
+                <p className="text-sm text-red-700 mt-1">
+                  枚数とセール日は必須です。以下の行を修正してからインポートしてください。
+                </p>
+
+                <div className="mt-3 max-h-48 overflow-y-auto">
+                  <ul className="text-sm text-red-700 space-y-1">
+                    {validationErrors.slice(0, 10).map((err, idx) => (
+                      <li key={idx} className="flex items-center gap-2">
+                        <span className="font-medium">行{err.row}:</span>
+                        <span>@{err.name}</span>
+                        <span className="text-red-600">- {err.errors.join('、')}</span>
+                      </li>
+                    ))}
+                    {validationErrors.length > 10 && (
+                      <li className="text-red-600 font-medium">
+                        ...他{validationErrors.length - 10}件のエラー
+                      </li>
+                    )}
+                  </ul>
+                </div>
+
+                <p className="text-xs text-red-600 mt-3">
+                  ※ エラーのある行もインポートされますが、必須項目は空のままになります
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* BE用海外発送設定 */}
         {file && currentBrand === 'BE' && showInternationalSettings && (
           <div className="card border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
@@ -901,7 +977,7 @@ export default function ImportPage() {
                   </label>
 
                   {defaultInternationalShipping.enabled && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-8 p-4 bg-white/50 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-8 p-4 bg-white/50 rounded-lg">
                       <div>
                         <label className="block text-sm font-medium text-emerald-800 mb-1">
                           発送先国
@@ -936,25 +1012,6 @@ export default function ImportPage() {
                           className="input-field text-sm"
                           min={0}
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-emerald-800 mb-1">
-                          通貨
-                        </label>
-                        <select
-                          value={defaultInternationalShipping.currency}
-                          onChange={(e) => setDefaultInternationalShipping({
-                            ...defaultInternationalShipping,
-                            currency: e.target.value,
-                          })}
-                          className="input-field text-sm"
-                        >
-                          <option value="JPY">JPY（日本円）</option>
-                          <option value="USD">USD（米ドル）</option>
-                          <option value="KRW">KRW（韓国ウォン）</option>
-                          <option value="CNY">CNY（人民元）</option>
-                        </select>
                       </div>
                     </div>
                   )}

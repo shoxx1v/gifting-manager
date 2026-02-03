@@ -126,11 +126,13 @@ export default function Sidebar() {
             </div>
           </div>
 
-          {/* ブランド切り替え */}
-          <div className="px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 size={14} className="text-gray-400" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">ブランド</span>
+          {/* ブランド切り替え - 大きく目立つように */}
+          <div className={`px-4 py-4 border-b-2 ${BRAND_COLORS[currentBrand].border} bg-gradient-to-r ${BRAND_COLORS[currentBrand].bg} transition-all duration-300`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Building2 size={16} className={BRAND_COLORS[currentBrand].text} />
+              <span className={`text-xs font-bold uppercase tracking-wider ${BRAND_COLORS[currentBrand].text}`}>
+                ブランド選択
+              </span>
             </div>
             <div className="flex gap-2">
               {BRANDS.map((brand) => {
@@ -140,16 +142,22 @@ export default function Sidebar() {
                   <button
                     key={brand}
                     onClick={() => setCurrentBrand(brand)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
+                    className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
                       isActive
-                        ? `bg-gradient-to-r ${colors.active} text-white shadow-md`
-                        : `${colors.bg} ${colors.text} border ${colors.border} hover:shadow-sm`
+                        ? `bg-gradient-to-r ${colors.active} text-white shadow-lg scale-105 ring-2 ring-white`
+                        : `bg-white ${colors.text} border-2 ${colors.border} hover:shadow-md hover:scale-102`
                     }`}
                   >
                     {brand}
                   </button>
                 );
               })}
+            </div>
+            {/* 選択中ブランドの説明 */}
+            <div className={`mt-3 text-xs ${BRAND_COLORS[currentBrand].text} text-center font-medium`}>
+              {currentBrand === 'TL' && '🏷️ THELABEL'}
+              {currentBrand === 'BE' && '🌏 BECAUSE（海外発送対応）'}
+              {currentBrand === 'AM' && '💎 AMERI'}
             </div>
           </div>
 

@@ -24,6 +24,11 @@ import {
   Gift,
   Settings2,
   Loader2,
+  AlertTriangle,
+  Bell,
+  Globe,
+  Plane,
+  MapPin,
 } from 'lucide-react';
 import CampaignModal from '@/components/forms/CampaignModal';
 import { useBrand } from '@/contexts/BrandContext';
@@ -274,6 +279,26 @@ export default function CampaignsPage() {
     }).format(amount);
   };
 
+  // 合意案件の未入力必須フィールドをチェック
+  const getMissingFieldsForAgreed = (campaign: Campaign): string[] => {
+    if (campaign.status !== 'agree') return [];
+
+    const missingFields: string[] = [];
+
+    if (!campaign.post_date) missingFields.push('投稿日');
+    if (!campaign.post_url) missingFields.push('投稿URL');
+    if (!campaign.likes && campaign.likes !== 0) missingFields.push('いいね数');
+    if (!campaign.comments && campaign.comments !== 0) missingFields.push('コメント数');
+    // 回数は自動計算なので削除
+
+    return missingFields;
+  };
+
+  // 合意案件で未入力がある案件を取得
+  const agreedWithMissingFields = filteredCampaigns.filter(
+    c => c.status === 'agree' && getMissingFieldsForAgreed(c).length > 0
+  );
+
   // 統計計算
   const stats = {
     total: filteredCampaigns.length,
@@ -282,6 +307,30 @@ export default function CampaignsPage() {
     totalSpent: filteredCampaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0),
     totalLikes: filteredCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0),
   };
+
+  // BE専用: 国別海外発送統計
+  const internationalStats = currentBrand === 'BE' ? (() => {
+    const internationalCampaigns = filteredCampaigns.filter(c => c.is_international_shipping);
+    const countryMap = new Map<string, { count: number; cost: number; likes: number }>();
+
+    internationalCampaigns.forEach(c => {
+      const country = c.shipping_country || '未設定';
+      const current = countryMap.get(country) || { count: 0, cost: 0, likes: 0 };
+      countryMap.set(country, {
+        count: current.count + 1,
+        cost: current.cost + (c.international_shipping_cost || 0),
+        likes: current.likes + (c.likes || 0),
+      });
+    });
+
+    return {
+      total: internationalCampaigns.length,
+      totalShippingCost: internationalCampaigns.reduce((sum, c) => sum + (c.international_shipping_cost || 0), 0),
+      byCountry: Array.from(countryMap.entries())
+        .map(([country, data]) => ({ country, ...data }))
+        .sort((a, b) => b.count - a.count),
+    };
+  })() : null;
 
   if (authLoading) {
     return <LoadingSpinner fullScreen message="認証中..." />;
@@ -346,6 +395,54 @@ export default function CampaignsPage() {
           </div>
         </div>
 
+        {/* BE専用: 国別海外発送分析 */}
+        {currentBrand === 'BE' && internationalStats && internationalStats.total > 0 && (
+          <div className="card bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Globe className="text-emerald-600" size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-emerald-900 flex items-center gap-2">
+                  <Plane size={16} />
+                  海外発送分析（BE専用）
+                </h3>
+                <p className="text-sm text-emerald-700">
+                  海外発送案件: {internationalStats.total}件 / 総送料: ¥{internationalStats.totalShippingCost.toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {internationalStats.byCountry.map(({ country, count, cost, likes }) => (
+                <div
+                  key={country}
+                  className="bg-white/70 rounded-lg p-3 border border-emerald-100 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin size={14} className="text-emerald-500" />
+                    <span className="font-medium text-emerald-900 text-sm truncate">{country}</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">案件数</span>
+                      <span className="font-bold text-emerald-700">{count}件</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">送料計</span>
+                      <span className="font-medium text-gray-700">¥{cost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">いいね</span>
+                      <span className="font-medium text-pink-500">{likes.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* フィルター */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1 max-w-md">
@@ -376,6 +473,64 @@ export default function CampaignsPage() {
             </div>
           </div>
         </div>
+
+        {/* 合意案件の未入力通知 */}
+        {agreedWithMissingFields.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 animate-slide-up">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 rounded-lg">
+                <Bell className="text-amber-600" size={18} />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-medium text-amber-900 flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  合意案件で未入力の項目があります
+                </h4>
+                <p className="text-sm text-amber-700 mt-1">
+                  以下の{agreedWithMissingFields.length}件の合意済み案件で、必須項目が未入力です。
+                  投稿完了後に入力してください。
+                </p>
+
+                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+                  {agreedWithMissingFields.slice(0, 5).map((campaign) => {
+                    const missing = getMissingFieldsForAgreed(campaign);
+                    return (
+                      <div
+                        key={campaign.id}
+                        className="flex items-center justify-between bg-white/60 rounded-lg p-2 text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-amber-900">
+                            @{campaign.influencer?.insta_name || campaign.influencer?.tiktok_name || '不明'}
+                          </span>
+                          <span className="text-amber-600">
+                            {campaign.item_code || '-'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-amber-600 text-xs">
+                            未入力: {missing.join('、')}
+                          </span>
+                          <button
+                            onClick={() => handleEdit(campaign)}
+                            className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs hover:bg-amber-200 transition-colors"
+                          >
+                            編集
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {agreedWithMissingFields.length > 5 && (
+                    <p className="text-xs text-amber-600 text-center py-1">
+                      ...他{agreedWithMissingFields.length - 5}件
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 一括操作バー */}
         {selectedIds.size > 0 && (
@@ -510,6 +665,14 @@ export default function CampaignsPage() {
                     <th className="table-header px-4 py-3">ブランド</th>
                     <th className="table-header px-4 py-3">インフルエンサー</th>
                     <th className="table-header px-4 py-3">品番</th>
+                    {currentBrand === 'BE' && (
+                      <th className="table-header px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <Plane size={14} className="text-emerald-500" />
+                          発送先
+                        </div>
+                      </th>
+                    )}
                     <th className="table-header px-4 py-3">提示額</th>
                     <th className="table-header px-4 py-3">合意額</th>
                     <th className="table-header px-4 py-3">ステータス</th>
@@ -543,6 +706,20 @@ export default function CampaignsPage() {
                         @{campaign.influencer?.insta_name || campaign.influencer?.tiktok_name || '不明'}
                       </td>
                       <td className="table-cell">{campaign.item_code || '-'}</td>
+                      {currentBrand === 'BE' && (
+                        <td className="table-cell">
+                          {campaign.is_international_shipping ? (
+                            <div className="flex items-center gap-1">
+                              <MapPin size={12} className="text-emerald-500" />
+                              <span className="text-emerald-700 text-xs font-medium">
+                                {campaign.shipping_country || '未設定'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">国内</span>
+                          )}
+                        </td>
+                      )}
                       <td className="table-cell">
                         {formatAmount(campaign.offered_amount)}
                       </td>
@@ -550,9 +727,19 @@ export default function CampaignsPage() {
                         {formatAmount(campaign.agreed_amount)}
                       </td>
                       <td className="table-cell">
-                        <span className={getStatusClass(campaign.status)}>
-                          {getStatusLabel(campaign.status)}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className={getStatusClass(campaign.status)}>
+                            {getStatusLabel(campaign.status)}
+                          </span>
+                          {campaign.status === 'agree' && getMissingFieldsForAgreed(campaign).length > 0 && (
+                            <span
+                              className="text-amber-500 cursor-help"
+                              title={`未入力: ${getMissingFieldsForAgreed(campaign).join('、')}`}
+                            >
+                              <AlertTriangle size={14} />
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="table-cell text-gray-500">
                         {formatDate(campaign.post_date)}

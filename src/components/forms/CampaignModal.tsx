@@ -49,7 +49,6 @@ export default function CampaignModal({
     is_international_shipping: campaign?.is_international_shipping ?? false,
     shipping_country: campaign?.shipping_country || '',
     international_shipping_cost: campaign?.international_shipping_cost ?? 0,
-    currency: campaign?.currency || 'JPY',
     notes: campaign?.notes || '',
   });
 
@@ -191,7 +190,6 @@ export default function CampaignModal({
         is_international_shipping: formData.is_international_shipping || false,
         shipping_country: formData.is_international_shipping ? (formData.shipping_country || null) : null,
         international_shipping_cost: formData.is_international_shipping ? (formData.international_shipping_cost || null) : null,
-        currency: formData.currency || 'JPY',
         notes: updatedNotes || null,
         updated_by: user?.id,
       };
@@ -587,7 +585,7 @@ export default function CampaignModal({
                 </label>
 
                 {formData.is_international_shipping && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-8">
                     <div>
                       <label className="block text-sm font-medium text-emerald-800 mb-1">
                         発送先国
@@ -617,22 +615,6 @@ export default function CampaignModal({
                         min={0}
                         placeholder="2000"
                       />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-emerald-800 mb-1">
-                        通貨
-                      </label>
-                      <select
-                        value={formData.currency}
-                        onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                        className="input-field text-sm"
-                      >
-                        <option value="JPY">JPY（日本円）</option>
-                        <option value="USD">USD（米ドル）</option>
-                        <option value="KRW">KRW（韓国ウォン）</option>
-                        <option value="CNY">CNY（人民元）</option>
-                      </select>
                     </div>
                   </div>
                 )}
