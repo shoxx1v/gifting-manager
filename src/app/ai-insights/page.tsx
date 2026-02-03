@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast, translateError } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import ErrorDisplay from '@/components/ui/ErrorDisplay';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   Sparkles,
   Brain,
@@ -85,6 +86,7 @@ interface AIAnalysisResult {
 export default function AIInsightsPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { currentBrand } = useBrand();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -117,6 +119,7 @@ export default function AIInsightsPage() {
       const { data, error } = await supabase
         .from('campaigns')
         .select('*, influencer:influencers(*)')
+        .eq('brand', currentBrand)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -140,7 +143,7 @@ export default function AIInsightsPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, currentBrand]);
 
   useEffect(() => {
     if (user) {

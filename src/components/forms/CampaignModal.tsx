@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Campaign, Influencer, CampaignFormData, Staff } from '@/types';
-import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag, Globe, Plane } from 'lucide-react';
+import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag, Globe, Plane, UserPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import TagInput, { SUGGESTED_TAGS } from '@/components/ui/TagInput';
 import QuickTemplates, { QuickAmountButtons, QuickDateButtons } from '@/components/ui/QuickTemplates';
@@ -15,6 +15,7 @@ interface CampaignModalProps {
   influencers: Influencer[];
   onClose: () => void;
   onSave: () => void;
+  onInfluencerAdded?: (newInfluencer: Influencer) => void; // 新規インフルエンサー追加時のコールバック
 }
 
 export default function CampaignModal({
@@ -22,10 +23,17 @@ export default function CampaignModal({
   influencers,
   onClose,
   onSave,
+  onInfluencerAdded,
 }: CampaignModalProps) {
   const { user } = useAuth();
   const { currentBrand } = useBrand();
   const { showToast } = useToast();
+  // 今日の日付をYYYY-MM-DD形式で取得
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   const [formData, setFormData] = useState<CampaignFormData>({
     influencer_id: campaign?.influencer_id || '',
     brand: campaign?.brand || currentBrand, // 現在のブランドを自動設定
@@ -35,7 +43,7 @@ export default function CampaignModal({
     desired_post_date: campaign?.desired_post_date || '',
     desired_post_start: campaign?.desired_post_start || '',
     desired_post_end: campaign?.desired_post_end || '',
-    agreed_date: campaign?.agreed_date || '',
+    agreed_date: campaign?.agreed_date || (!campaign ? getTodayDate() : ''), // 新規作成時は当日を自動設定
     offered_amount: campaign?.offered_amount || 0,
     agreed_amount: campaign?.agreed_amount || 0,
     status: campaign?.status || 'pending',
@@ -56,6 +64,35 @@ export default function CampaignModal({
     staff_id: campaign?.staff_id || '',
   });
 
+  // いいね/コメント/検討コメント入力時に入力日を自動設定
+  const handleEngagementChange = (field: 'likes' | 'comments' | 'consideration_comment', value: number) => {
+    const updates: Partial<CampaignFormData> = { [field]: value };
+
+    // 値が入力され、まだ入力日が設定されていない場合は当日を自動設定
+    if (value > 0 && !formData.engagement_date) {
+      updates.engagement_date = getTodayDate();
+    }
+
+    // いいねが入力された場合、ステータスを自動で「合意」に変更
+    if (field === 'likes' && value > 0 && formData.status === 'pending') {
+      updates.status = 'agree';
+    }
+
+    setFormData({ ...formData, ...updates });
+  };
+
+  // 投稿URL入力時に投稿日を自動設定
+  const handlePostUrlChange = (url: string) => {
+    const updates: Partial<CampaignFormData> = { post_url: url };
+
+    // URLが入力され、まだ投稿日が設定されていない場合は当日を自動設定
+    if (url && !formData.post_date) {
+      updates.post_date = getTodayDate();
+    }
+
+    setFormData({ ...formData, ...updates });
+  };
+
   // 担当者リストを取得
   const [staffs, setStaffs] = useState<Staff[]>([]);
   useEffect(() => {
@@ -69,6 +106,56 @@ export default function CampaignModal({
     };
     fetchStaffs();
   }, []);
+
+  // 新規インフルエンサー登録用の状態
+  const [showNewInfluencer, setShowNewInfluencer] = useState(false);
+  const [newInfluencerName, setNewInfluencerName] = useState('');
+  const [newInfluencerType, setNewInfluencerType] = useState<'instagram' | 'tiktok'>('instagram');
+  const [addingInfluencer, setAddingInfluencer] = useState(false);
+  const [localInfluencers, setLocalInfluencers] = useState<Influencer[]>(influencers);
+
+  // influencers propが更新されたらlocalInfluencersも更新
+  useEffect(() => {
+    setLocalInfluencers(influencers);
+  }, [influencers]);
+
+  // 新規インフルエンサーを追加
+  const handleAddInfluencer = async () => {
+    if (!newInfluencerName.trim()) return;
+
+    setAddingInfluencer(true);
+    try {
+      const insertData = newInfluencerType === 'instagram'
+        ? { insta_name: newInfluencerName.trim(), brand: currentBrand }
+        : { tiktok_name: newInfluencerName.trim(), brand: currentBrand };
+
+      const { data, error } = await supabase
+        .from('influencers')
+        .insert([insertData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // ローカルのリストに追加
+      setLocalInfluencers([data, ...localInfluencers]);
+      // 新しいインフルエンサーを選択
+      setFormData({ ...formData, influencer_id: data.id });
+      // フォームをリセット
+      setNewInfluencerName('');
+      setShowNewInfluencer(false);
+      showToast('success', 'インフルエンサーを追加しました');
+
+      // 親コンポーネントにも通知
+      if (onInfluencerAdded) {
+        onInfluencerAdded(data);
+      }
+    } catch (err) {
+      showToast('error', translateError(err));
+    } finally {
+      setAddingInfluencer(false);
+    }
+  };
 
   // 回数を自動計算（インフルエンサーとの過去の案件数）
   const [numberOfTimes, setNumberOfTimes] = useState<number>(campaign?.number_of_times || 1);
@@ -341,21 +428,63 @@ export default function CampaignModal({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   インフルエンサー <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={formData.influencer_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, influencer_id: e.target.value })
-                  }
-                  className="input-field"
-                  required
-                >
-                  <option value="">選択してください</option>
-                  {influencers.map((inf) => (
-                    <option key={inf.id} value={inf.id}>
-                      @{inf.insta_name || inf.tiktok_name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.influencer_id}
+                    onChange={(e) =>
+                      setFormData({ ...formData, influencer_id: e.target.value })
+                    }
+                    className="input-field flex-1"
+                    required
+                  >
+                    <option value="">選択してください</option>
+                    {localInfluencers.map((inf) => (
+                      <option key={inf.id} value={inf.id}>
+                        @{inf.insta_name || inf.tiktok_name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewInfluencer(!showNewInfluencer)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    title="新規インフルエンサー追加"
+                  >
+                    <UserPlus size={18} className="text-gray-600" />
+                  </button>
+                </div>
+
+                {/* 新規インフルエンサー追加フォーム */}
+                {showNewInfluencer && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+                    <div className="flex gap-2">
+                      <select
+                        value={newInfluencerType}
+                        onChange={(e) => setNewInfluencerType(e.target.value as 'instagram' | 'tiktok')}
+                        className="input-field text-sm w-32"
+                      >
+                        <option value="instagram">Instagram</option>
+                        <option value="tiktok">TikTok</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={newInfluencerName}
+                        onChange={(e) => setNewInfluencerName(e.target.value)}
+                        placeholder="@ユーザー名"
+                        className="input-field text-sm flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddInfluencer}
+                        disabled={!newInfluencerName.trim() || addingInfluencer}
+                        className="px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        {addingInfluencer ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        追加
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -736,12 +865,13 @@ export default function CampaignModal({
                 <input
                   type="url"
                   value={formData.post_url}
-                  onChange={(e) =>
-                    setFormData({ ...formData, post_url: e.target.value })
-                  }
+                  onChange={(e) => handlePostUrlChange(e.target.value)}
                   className="input-field"
                   placeholder="https://www.tiktok.com/@..."
                 />
+                {formData.post_url && !formData.post_date && (
+                  <p className="text-xs text-green-600 mt-1">※投稿日が自動設定されます</p>
+                )}
               </div>
             </div>
           </div>
@@ -757,72 +887,66 @@ export default function CampaignModal({
               )}
             </div>
 
-            {formData.status === 'agree' ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    いいね数
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.likes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, likes: parseInt(e.target.value) || 0 })
-                    }
-                    className="input-field"
-                    min={0}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    コメント数
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.comments}
-                    onChange={(e) =>
-                      setFormData({ ...formData, comments: parseInt(e.target.value) || 0 })
-                    }
-                    className="input-field"
-                    min={0}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    検討コメント
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.consideration_comment}
-                    onChange={(e) =>
-                      setFormData({ ...formData, consideration_comment: parseInt(e.target.value) || 0 })
-                    }
-                    className="input-field"
-                    min={0}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    入力日
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.engagement_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, engagement_date: e.target.value })
-                    }
-                    className="input-field"
-                  />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  いいね数
+                </label>
+                <input
+                  type="number"
+                  value={formData.likes}
+                  onChange={(e) => handleEngagementChange('likes', parseInt(e.target.value) || 0)}
+                  className="input-field"
+                  min={0}
+                />
+                {formData.status === 'pending' && (
+                  <p className="text-xs text-gray-500 mt-1">※入力するとステータスが「合意」に</p>
+                )}
               </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg p-4 text-center text-gray-500 text-sm">
-                ステータスを「合意」に変更するとエンゲージメント情報を入力できます
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  コメント数
+                </label>
+                <input
+                  type="number"
+                  value={formData.comments}
+                  onChange={(e) => handleEngagementChange('comments', parseInt(e.target.value) || 0)}
+                  className="input-field"
+                  min={0}
+                />
               </div>
-            )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  検討コメント
+                </label>
+                <input
+                  type="number"
+                  value={formData.consideration_comment}
+                  onChange={(e) => handleEngagementChange('consideration_comment', parseInt(e.target.value) || 0)}
+                  className="input-field"
+                  min={0}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  入力日
+                </label>
+                <input
+                  type="date"
+                  value={formData.engagement_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, engagement_date: e.target.value })
+                  }
+                  className="input-field"
+                />
+                {!formData.engagement_date && (formData.likes > 0 || formData.comments > 0 || formData.consideration_comment > 0) && (
+                  <p className="text-xs text-green-600 mt-1">※自動設定されます</p>
+                )}
+              </div>
+            </div>
 
             {/* 回数（自動計算）*/}
             {formData.influencer_id && (

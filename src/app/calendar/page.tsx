@@ -7,6 +7,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast, translateError } from '@/lib/toast';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useBrand } from '@/contexts/BrandContext';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -43,6 +44,7 @@ type ViewMode = 'month' | 'week' | 'list';
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { currentBrand } = useBrand();
   const [loading, setLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -56,6 +58,7 @@ export default function CalendarPage() {
       const { data, error } = await supabase
         .from('campaigns')
         .select('*, influencer:influencers(*)')
+        .eq('brand', currentBrand)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -65,7 +68,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, currentBrand]);
 
   useEffect(() => {
     if (user) {
