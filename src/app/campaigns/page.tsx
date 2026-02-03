@@ -23,7 +23,6 @@ import {
   X,
   Settings2,
   Loader2,
-  AlertTriangle,
   Globe,
   Plane,
   MapPin,
@@ -645,19 +644,9 @@ export default function CampaignsPage() {
                         {formatAmount(campaign.agreed_amount)}
                       </td>
                       <td className="table-cell">
-                        <div className="flex items-center gap-1">
-                          <span className={getStatusClass(campaign.status)}>
-                            {getStatusLabel(campaign.status)}
-                          </span>
-                          {campaign.status === 'agree' && getMissingFieldsForAgreed(campaign).length > 0 && (
-                            <span
-                              className="text-amber-500 cursor-help"
-                              title={`未入力: ${getMissingFieldsForAgreed(campaign).join('、')}`}
-                            >
-                              <AlertTriangle size={14} />
-                            </span>
-                          )}
-                        </div>
+                        <span className={getStatusClass(campaign.status)}>
+                          {getStatusLabel(campaign.status)}
+                        </span>
                       </td>
                       <td className="table-cell text-gray-500">
                         {formatDate(campaign.post_date)}

@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const campaignSchema = z.object({
   // 基本情報
   influencer_id: z.string().min(1, 'インフルエンサーを選択してください'),
-  brand: z.enum(['TL', 'BE', 'AM'], { required_error: 'ブランドを選択してください' }),
+  brand: z.enum(['TL', 'BE', 'AM'], { message: 'ブランドを選択してください' }),
   staff_id: z.string().optional(),
   item_code: z.string().min(1, '品番を入力してください'),
   item_quantity: z.number().min(1, '枚数は1以上を入力してください'),
@@ -20,7 +20,7 @@ export const campaignSchema = z.object({
 
   // 金額
   status: z.enum(['pending', 'agree', 'disagree', 'cancelled'], {
-    required_error: 'ステータスを選択してください',
+    message: 'ステータスを選択してください',
   }),
   proposed_amount: z.number().min(0, '提示額は0以上を入力してください').optional(),
   agreed_amount: z.number().min(0, '合意額は0以上を入力してください').optional(),
