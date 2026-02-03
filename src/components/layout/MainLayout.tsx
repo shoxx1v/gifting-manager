@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import AIChatWidget from '@/components/ui/AIChatWidget';
@@ -37,8 +39,17 @@ const BRAND_CONFIG: Record<Brand, {
 };
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  const { currentBrand } = useBrand();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { currentBrand, isBrandSelected } = useBrand();
   const brandConfig = BRAND_CONFIG[currentBrand];
+
+  // ブランドが選択されていない場合、ブランド選択画面にリダイレクト
+  useEffect(() => {
+    if (!isBrandSelected && pathname !== '/brand-select' && pathname !== '/auth') {
+      router.push('/brand-select');
+    }
+  }, [isBrandSelected, pathname, router]);
 
   return (
     <div className="min-h-screen bg-gray-50">

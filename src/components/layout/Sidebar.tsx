@@ -15,6 +15,7 @@ import {
   Bell,
   History,
   UserCog,
+  RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -67,12 +68,18 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { currentBrand, setCurrentBrand } = useBrand();
+  const { currentBrand, setCurrentBrand, clearBrandSelection } = useBrand();
   const colors = BRAND_COLORS[currentBrand];
 
   const handleLogout = async () => {
+    clearBrandSelection();
     await supabase.auth.signOut();
     router.push('/auth');
+  };
+
+  const handleChangeBrand = () => {
+    clearBrandSelection();
+    router.push('/brand-select');
   };
 
   const NavLink = ({ item, onClick }: { item: typeof navigation[0]; onClick?: () => void }) => {
@@ -123,33 +130,26 @@ export default function Sidebar() {
             <h1 className="text-lg font-bold text-gray-800">Gifting Manager</h1>
           </div>
 
-          {/* ブランド切り替え */}
+          {/* 現在のブランド表示 */}
           <div className="p-4 border-b">
-            <p className="text-xs text-gray-500 mb-2">ブランド</p>
-            <div className="flex gap-1">
-              {BRANDS.map((brand) => {
-                const brandColors = BRAND_COLORS[brand];
-                const isActive = currentBrand === brand;
-                return (
-                  <button
-                    key={brand}
-                    onClick={() => setCurrentBrand(brand)}
-                    className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                      isActive
-                        ? `${brandColors.bgActive} text-white`
-                        : `${brandColors.bg} ${brandColors.text} border ${brandColors.border}`
-                    }`}
-                  >
-                    {brand}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-500">現在のブランド</p>
+              <button
+                onClick={handleChangeBrand}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                <RefreshCw size={12} />
+                <span>変更</span>
+              </button>
             </div>
-            <p className={`mt-2 text-xs ${colors.text} text-center`}>
-              {currentBrand === 'TL' && "That's life"}
-              {currentBrand === 'BE' && 'Belvet'}
-              {currentBrand === 'AM' && 'Antimid'}
-            </p>
+            <div className={`${colors.bgActive} text-white px-4 py-3 rounded-lg text-center`}>
+              <span className="text-lg font-bold">{currentBrand}</span>
+              <p className="text-xs text-white/70 mt-1">
+                {currentBrand === 'TL' && "That's life"}
+                {currentBrand === 'BE' && 'Belvet'}
+                {currentBrand === 'AM' && 'Antimid'}
+              </p>
+            </div>
           </div>
 
           {/* メインナビ */}
