@@ -9,6 +9,18 @@ export interface Influencer {
   updated_at: string;
 }
 
+// 社員（担当者）
+export interface Staff {
+  id: string;
+  name: string;
+  email: string | null;
+  department: string | null;
+  position: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // ユーザープロフィール
 export interface UserProfile {
   id: string;
@@ -48,11 +60,13 @@ export interface Campaign {
   shipping_country: string | null; // 発送先国
   international_shipping_cost: number | null; // 海外発送送料
   notes: string | null;
+  staff_id: string | null; // 担当者ID
   created_by: string | null; // 作成者ID
   updated_by: string | null; // 最終更新者ID
   created_at: string;
   updated_at: string;
   influencer?: Influencer;
+  staff?: Staff; // 担当者
   creator?: UserProfile; // 作成者プロフィール
   updater?: UserProfile; // 更新者プロフィール
 }
@@ -139,6 +153,14 @@ export interface CampaignFormData {
   shipping_country: string;
   international_shipping_cost: number;
   notes: string;
+  staff_id: string;
+}
+
+export interface StaffFormData {
+  name: string;
+  email: string;
+  department: string;
+  position: string;
 }
 
 export interface InfluencerFormData {

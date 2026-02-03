@@ -9,7 +9,7 @@ interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-// ブランドごとの設定（シンプルなカラー）
+// ブランドごとの設定（グレー系で統一）
 const BRAND_CONFIG: Record<Brand, {
   name: string;
   bgColor: string;
@@ -18,20 +18,20 @@ const BRAND_CONFIG: Record<Brand, {
 }> = {
   TL: {
     name: 'TL',
-    bgColor: 'bg-emerald-800',
-    textColor: 'text-emerald-800',
+    bgColor: 'bg-gray-800',
+    textColor: 'text-gray-800',
     description: "That's life",
   },
   BE: {
     name: 'BE',
-    bgColor: 'bg-gray-600',
-    textColor: 'text-gray-600',
+    bgColor: 'bg-gray-800',
+    textColor: 'text-gray-800',
     description: 'Belvet',
   },
   AM: {
     name: 'AM',
-    bgColor: 'bg-red-900',
-    textColor: 'text-red-900',
+    bgColor: 'bg-gray-800',
+    textColor: 'text-gray-800',
     description: 'Antimid',
   },
 };

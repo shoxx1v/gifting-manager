@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Campaign, Influencer, CampaignFormData } from '@/types';
+import { Campaign, Influencer, CampaignFormData, Staff } from '@/types';
 import { X, Loader2, User, Calendar, MessageSquare, Plus, Tag, Globe, Plane } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import TagInput, { SUGGESTED_TAGS } from '@/components/ui/TagInput';
@@ -51,7 +51,45 @@ export default function CampaignModal({
     shipping_country: campaign?.shipping_country || '',
     international_shipping_cost: campaign?.international_shipping_cost ?? 0,
     notes: campaign?.notes || '',
+    staff_id: campaign?.staff_id || '',
   });
+
+  // 担当者リストを取得
+  const [staffs, setStaffs] = useState<Staff[]>([]);
+  useEffect(() => {
+    const fetchStaffs = async () => {
+      const { data } = await supabase
+        .from('staffs')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      if (data) setStaffs(data);
+    };
+    fetchStaffs();
+  }, []);
+
+  // 回数を自動計算（インフルエンサーとの過去の案件数）
+  const [numberOfTimes, setNumberOfTimes] = useState<number>(campaign?.number_of_times || 1);
+  useEffect(() => {
+    const fetchNumberOfTimes = async () => {
+      if (!formData.influencer_id) {
+        setNumberOfTimes(1);
+        return;
+      }
+
+      const { count, error } = await supabase
+        .from('campaigns')
+        .select('*', { count: 'exact', head: true })
+        .eq('influencer_id', formData.influencer_id)
+        .eq('brand', currentBrand);
+
+      if (!error && count !== null) {
+        // 新規登録の場合は+1、編集の場合はそのまま
+        setNumberOfTimes(campaign ? count : count + 1);
+      }
+    };
+    fetchNumberOfTimes();
+  }, [formData.influencer_id, currentBrand, campaign]);
 
   // よくある海外発送先国リスト
   const COMMON_COUNTRIES = [
@@ -186,13 +224,14 @@ export default function CampaignModal({
         comments: formData.comments || 0,
         consideration_comment: formData.consideration_comment || 0,
         engagement_date: formData.engagement_date || null,
-        number_of_times: formData.number_of_times || 1,
+        number_of_times: numberOfTimes || 1,
         product_cost: formData.product_cost || 0,
         shipping_cost: 800, // 送料は800円固定
         is_international_shipping: formData.is_international_shipping || false,
         shipping_country: formData.is_international_shipping ? (formData.shipping_country || null) : null,
         international_shipping_cost: formData.is_international_shipping ? (formData.international_shipping_cost || null) : null,
         notes: updatedNotes || null,
+        staff_id: formData.staff_id || null,
         updated_by: user?.id,
       };
 
@@ -316,22 +355,47 @@ export default function CampaignModal({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ブランド
+                  ブランド <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.brand}
                   onChange={(e) =>
                     setFormData({ ...formData, brand: e.target.value })
                   }
                   className="input-field"
-                  placeholder="TL"
-                />
+                  required
+                  disabled
+                >
+                  <option value="TL">TL (That&apos;s life)</option>
+                  <option value="BE">BE (Belvet)</option>
+                  <option value="AM">AM (Antimid)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">※サイドバーで切り替え</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  品番
+                  担当者
+                </label>
+                <select
+                  value={formData.staff_id}
+                  onChange={(e) =>
+                    setFormData({ ...formData, staff_id: e.target.value })
+                  }
+                  className="input-field"
+                >
+                  <option value="">選択してください</option>
+                  {staffs.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.name}{staff.department ? ` (${staff.department})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  品番 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -341,12 +405,13 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   placeholder="TF-2408"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  枚数
+                  枚数 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -356,6 +421,7 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={1}
+                  required
                 />
               </div>
             </div>
@@ -368,7 +434,7 @@ export default function CampaignModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  セール日
+                  セール日 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -377,12 +443,13 @@ export default function CampaignModal({
                     setFormData({ ...formData, sale_date: e.target.value })
                   }
                   className="input-field"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  合意日
+                  打診日 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -391,6 +458,7 @@ export default function CampaignModal({
                     setFormData({ ...formData, agreed_date: e.target.value })
                   }
                   className="input-field"
+                  required
                 />
               </div>
             </div>
@@ -677,10 +745,10 @@ export default function CampaignModal({
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900 border-b pb-2">エンゲージメント</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  いいね数
+                  いいね数 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -690,12 +758,13 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={0}
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  コメント数
+                  コメント数 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -705,12 +774,13 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={0}
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  検討コメント
+                  検討コメント <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -720,12 +790,13 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={0}
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  入力日
+                  入力日 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="date"
@@ -734,24 +805,18 @@ export default function CampaignModal({
                     setFormData({ ...formData, engagement_date: e.target.value })
                   }
                   className="input-field"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  回数
-                </label>
-                <input
-                  type="number"
-                  value={formData.number_of_times}
-                  onChange={(e) =>
-                    setFormData({ ...formData, number_of_times: parseInt(e.target.value) || 1 })
-                  }
-                  className="input-field"
-                  min={1}
+                  required
                 />
               </div>
             </div>
+
+            {/* 回数（自動計算）*/}
+            {formData.influencer_id && (
+              <div className="bg-gray-50 rounded-lg p-3">
+                <span className="text-sm text-gray-600">回数（このインフルエンサーとの{currentBrand}案件）: </span>
+                <span className="font-bold text-gray-900">{numberOfTimes}回目</span>
+              </div>
+            )}
           </div>
 
           {/* コメント・メモ */}

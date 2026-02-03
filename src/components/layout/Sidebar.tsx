@@ -14,13 +14,14 @@ import {
   BarChart3,
   Bell,
   History,
+  UserCog,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useBrand, BRANDS, Brand } from '@/contexts/BrandContext';
 
-// ブランドの色設定
+// ブランドの色設定（グレー系で統一）
 const BRAND_COLORS: Record<Brand, {
   bg: string;
   bgActive: string;
@@ -28,22 +29,22 @@ const BRAND_COLORS: Record<Brand, {
   border: string;
 }> = {
   TL: {
-    bg: 'bg-emerald-100',
-    bgActive: 'bg-emerald-800',
-    text: 'text-emerald-800',
-    border: 'border-emerald-300',
+    bg: 'bg-gray-100',
+    bgActive: 'bg-gray-800',
+    text: 'text-gray-700',
+    border: 'border-gray-300',
   },
   BE: {
     bg: 'bg-gray-100',
-    bgActive: 'bg-gray-600',
+    bgActive: 'bg-gray-800',
     text: 'text-gray-700',
     border: 'border-gray-300',
   },
   AM: {
-    bg: 'bg-red-100',
-    bgActive: 'bg-red-900',
-    text: 'text-red-900',
-    border: 'border-red-300',
+    bg: 'bg-gray-100',
+    bgActive: 'bg-gray-800',
+    text: 'text-gray-700',
+    border: 'border-gray-300',
   },
 };
 
@@ -56,6 +57,7 @@ const navigation = [
 ];
 
 const settingsNavigation = [
+  { name: '社員管理', href: '/staffs', icon: UserCog },
   { name: '通知設定', href: '/notifications', icon: Bell },
   { name: '変更履歴', href: '/audit-log', icon: History },
   { name: '管理者', href: '/admin', icon: Shield },

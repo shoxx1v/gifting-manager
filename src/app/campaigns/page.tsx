@@ -21,11 +21,9 @@ import {
   CheckSquare,
   Square,
   X,
-  Gift,
   Settings2,
   Loader2,
   AlertTriangle,
-  Bell,
   Globe,
   Plane,
   MapPin,
@@ -280,31 +278,6 @@ export default function CampaignsPage() {
     }).format(amount);
   };
 
-  // 合意案件の未入力必須フィールドをチェック（販売日から5日経過後のみ）
-  const getMissingFieldsForAgreed = (campaign: Campaign): string[] => {
-    if (campaign.status !== 'agree') return [];
-
-    // 販売日がない場合、または販売日から5日経過していない場合は通知しない
-    if (!campaign.sale_date) return [];
-    const saleDate = new Date(campaign.sale_date);
-    const today = new Date();
-    const daysSinceSale = Math.floor((today.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysSinceSale < 5) return [];
-
-    const missingFields: string[] = [];
-
-    if (!campaign.post_date) missingFields.push('投稿日');
-    if (!campaign.post_url) missingFields.push('投稿URL');
-    // 回数は自動計算なので削除
-
-    return missingFields;
-  };
-
-  // 合意案件で未入力がある案件を取得
-  const agreedWithMissingFields = filteredCampaigns.filter(
-    c => c.status === 'agree' && getMissingFieldsForAgreed(c).length > 0
-  );
-
   // 統計計算
   const stats = {
     total: filteredCampaigns.length,
@@ -476,60 +449,6 @@ export default function CampaignsPage() {
             </div>
           </div>
         </div>
-
-        {/* 合意案件の未入力通知 */}
-        {agreedWithMissingFields.length > 0 && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 animate-slide-up">
-            <div className="flex items-start gap-3">
-              <Bell className="text-gray-500 mt-0.5" size={18} />
-              <div className="flex-1">
-                <h4 className="font-medium text-gray-900">
-                  合意案件で未入力の項目があります
-                </h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  以下の{agreedWithMissingFields.length}件の合意済み案件で、必須項目が未入力です。投稿完了後に入力してください。
-                </p>
-
-                <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
-                  {agreedWithMissingFields.slice(0, 5).map((campaign) => {
-                    const missing = getMissingFieldsForAgreed(campaign);
-                    return (
-                      <div
-                        key={campaign.id}
-                        className="flex items-center justify-between bg-white rounded-lg p-2 text-sm border border-gray-100"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900">
-                            @{campaign.influencer?.insta_name || campaign.influencer?.tiktok_name || '不明'}
-                          </span>
-                          <span className="text-gray-500">
-                            {campaign.item_code || '-'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500 text-xs">
-                            未入力: {missing.join('、')}
-                          </span>
-                          <button
-                            onClick={() => handleEdit(campaign)}
-                            className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition-colors"
-                          >
-                            編集
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {agreedWithMissingFields.length > 5 && (
-                    <p className="text-xs text-gray-500 text-center py-1">
-                      ...他{agreedWithMissingFields.length - 5}件
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* 一括操作バー */}
         {selectedIds.size > 0 && (
