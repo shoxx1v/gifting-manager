@@ -12,7 +12,6 @@ import {
   X,
   Shield,
   BarChart3,
-  Bell,
   History,
   UserCog,
   RefreshCw,
@@ -60,7 +59,6 @@ const navigation = [
 
 // 一般ユーザー向け設定
 const generalSettingsNavigation = [
-  { name: '通知設定', href: '/notifications', icon: Bell },
   { name: '変更履歴', href: '/audit-log', icon: History },
 ];
 
