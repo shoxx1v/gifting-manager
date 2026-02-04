@@ -1,6 +1,6 @@
 # Gifting App (GGCRM) 開発進捗状況
 
-最終更新: 2026-02-03
+最終更新: 2026-02-04
 
 ## 必読ファイル
 **実装前に必ず以下を読むこと**:
@@ -128,6 +128,27 @@ const response = await fetch(`${apiUrl}/api/master/brands`, {
   - `@tanstack/react-table` 導入
   - ソート・ページネーション・検索機能
   - 再利用可能な汎用テーブルコンポーネント
+
+#### Phase 8: React Query統合・リファクタリング（2026-02-04）
+- [x] **useQueries.ts修正**
+  - useDashboardStats: `cost` → `agreed_amount` フィールド修正
+  - useInfluencersWithScores: スコア計算付きインフルエンサー取得
+  - useDashboardFullStats: 詳細ダッシュボード統計
+- [x] **ページのReact Query移行**
+  - campaigns/page.tsx: useCampaigns, useInfluencers, useDeleteCampaign
+  - influencers/page.tsx: useInfluencersWithScores
+  - dashboard/page.tsx: useDashboardFullStats
+- [x] **キャッシュ最適化**
+  - ページ間でデータ共有（重複リクエスト削減）
+  - invalidateQueries による自動更新
+- [x] **import/page.tsx コンポーネント分割**
+  - FileUploadArea: ファイルアップロードエリア
+  - DuplicateWarning: 重複警告表示
+  - ValidationErrors: バリデーションエラー表示
+  - ColumnMappingSettings: カラムマッピング設定
+  - InternationalShippingSettings: 海外発送設定（BE専用）
+  - PreviewTable: プレビューテーブル
+  - ImportResult: インポート結果表示
 
 ---
 
@@ -391,6 +412,7 @@ Clout Dashboardで一度ログインすれば全アプリにアクセス可能�
 
 | 日付 | 変更内容 |
 |------|---------|
+| 2026-02-04 | React Query統合（campaigns/influencers/dashboard）、useQueries.tsフィールド修正、import/page.tsxコンポーネント分割 |
 | 2026-02-03 | React Query導入、一括入力ページ追加、DataTableコンポーネント作成 |
 | 2026-02-03 | サイドバーナビゲーション整理（社員管理・管理者・変更履歴を削除） |
 | 2026-02-03 | ダーク/ライトモード切り替え機能追加 |
