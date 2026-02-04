@@ -81,7 +81,7 @@ const response = await fetch(`${apiUrl}/api/master/brands`, {
   - AM: パープル（purple-400/500）
 - [x] **ステータスバッジ改善**: カラーアクセント追加（合意=緑、保留=黄、不合意=赤）
 - [x] **担当者表示追加**: キャンペーン一覧に担当者列追加
-- [x] **MainLayout更新**: ダークテーマ + ブランドバー
+- [x] **MainLayout更新**: ダークテーマ + ブランドバー + テーマ切り替え対応
 - [x] **BottomNav更新**: モバイル用ナビもダークテーマ化
 
 #### Phase 5: DB・API連携
@@ -94,7 +94,21 @@ const response = await fetch(`${apiUrl}/api/master/brands`, {
   - キャッシュ: localStorage + 1時間TTL
 - [x] **SSO認証基盤準備**
   - `/src/lib/clout-auth.ts` 実装済み
+  - `/src/middleware.ts` SSO対応済み
   - 環境変数で有効化可能（`NEXT_PUBLIC_SSO_ENABLED=true`）
+
+#### Phase 6: UI整理・テーマ機能（2026-02-03）
+- [x] **サイドバーナビゲーション整理**
+  - 「社員管理」「管理者」「変更履歴」を削除
+  - シンプルなナビゲーション構成に変更
+- [x] **ダーク/ライトモード切り替え機能**
+  - サイドバー下部にテーマ切り替えボタン追加
+  - Sun/Moonアイコンでわかりやすく表示
+  - localStorage に設定を保存（ページリロード後も維持）
+  - サイドバー、MainLayout、globals.css 全てテーマ対応
+- [x] **ライトモードCSS追加**
+  - globals.css に `html.light-mode` スタイル追加
+  - カード、ボタン、テーブル、入力フィールドなど全コンポーネント対応
 
 ---
 
@@ -128,7 +142,7 @@ const response = await fetch(`${apiUrl}/api/master/brands`, {
 
 ---
 
-## 次にやるべきこと 🎯
+## 次にやるべきこと
 
 ### 1. ユーザー作業（最優先）
 
@@ -151,11 +165,14 @@ CLERK_SECRET_KEY=sk_live_xxx
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-### 3. 動作確認項目
-- [ ] 各ブランドでのログイン・データ分離確認
-- [ ] ダークテーマの表示確認
-- [ ] 担当者表示の動作確認
-- [ ] 他アプリリンクの動作確認
+### 3. 動作確認項目（完了済み）
+- [x] 各ブランドでのログイン・データ分離確認
+- [x] ダークテーマの表示確認
+- [x] ライトテーマの表示確認
+- [x] テーマ切り替え機能の動作確認
+- [x] 担当者表示の動作確認
+- [x] 他アプリリンクの動作確認
+- [x] サイドバーのナビゲーション整理確認
 
 ---
 
@@ -168,6 +185,14 @@ NEXT_PUBLIC_SSO_ENABLED=true
 | 背景（カード） | `oklch(0.205 0 0)` | やや明るいグレー |
 | ボーダー | `oklch(0.30 0 0)` | 薄いボーダー |
 | テキスト | `oklch(0.985 0 0)` | 白系 |
+
+### カラー（ライトテーマ）
+| 用途 | 値 | 備考 |
+|------|-----|------|
+| 背景（メイン） | `bg-gray-50` | ライトグレー |
+| 背景（カード） | `bg-white` | 白 |
+| ボーダー | `border-gray-200` | 薄いグレー |
+| テキスト | `text-gray-900` | 黒系 |
 
 ### ブランド別アクセントカラー
 | ブランド | Tailwindクラス |
@@ -231,10 +256,10 @@ s@clout.co.jp
 ### レイアウト
 | ファイル | 説明 |
 |---------|------|
-| `/src/components/layout/MainLayout.tsx` | メインレイアウト（ダークテーマ） |
-| `/src/components/layout/Sidebar.tsx` | サイドバー（他アプリリンク含む） |
+| `/src/components/layout/MainLayout.tsx` | メインレイアウト（テーマ切り替え対応） |
+| `/src/components/layout/Sidebar.tsx` | サイドバー（テーマ切り替えボタン含む） |
 | `/src/components/layout/BottomNav.tsx` | モバイルナビ |
-| `/src/app/globals.css` | グローバルスタイル（ダークテーマ） |
+| `/src/app/globals.css` | グローバルスタイル（ダーク/ライト両対応） |
 
 ### 認証・権限
 | ファイル | 説明 |
@@ -244,6 +269,7 @@ s@clout.co.jp
 | `/src/hooks/useAdminAuth.ts` | 管理者権限フック |
 | `/src/contexts/BrandContext.tsx` | ブランド状態管理（Clout API連携） |
 | `/src/lib/clout-auth.ts` | SSO認証ヘルパー |
+| `/src/middleware.ts` | SSO認証ミドルウェア |
 
 ### フォーム
 | ファイル | 説明 |
@@ -262,6 +288,7 @@ s@clout.co.jp
 | `brandSelected` | ブランド選択済みフラグ |
 | `clout_brands_cache` | Clout APIブランドキャッシュ |
 | `clout_brands_cache_expiry` | キャッシュ期限（Unix timestamp） |
+| `theme` | テーマ設定（`dark` または `light`） |
 
 ---
 
@@ -281,6 +308,35 @@ https://gifting-app-seven.vercel.app
 すべてのページで`.eq('brand', currentBrand)`を使用
 例外: admin/page.tsx, audit-log/page.tsx（全データ表示）
 
+### テーマ切り替え
+- `document.documentElement.classList.toggle('light-mode')` で切り替え
+- MutationObserverでclass変更を監視してコンポーネント更新
+- サイドバーで切り替えボタンをクリック
+
+---
+
+## サイドバー構成（現在）
+
+1. ダッシュボード
+2. ROI分析
+3. インフルエンサー
+4. ギフティング案件
+5. インポート
+6. 他のアプリ
+   - Clout Dashboard（統合ポータル）
+   - ShortsOS（動画分析）
+   - ModelCRM（撮影管理・TLのみ）
+   - Master（商品マスター）
+7. ライトモード/ダークモード（テーマ切り替え）
+8. ログアウト
+
+**削除済み項目**:
+- 設定セクション
+- 変更履歴
+- 管理者メニュー
+- 社員管理
+- 管理者
+
 ---
 
 ## SSO移行手順（ADR-006）
@@ -289,6 +345,7 @@ Clout Dashboardで一度ログインすれば全アプリにアクセス可能�
 
 ### 実装状況
 - [x] `/src/lib/clout-auth.ts` 作成済み
+- [x] `/src/middleware.ts` SSO対応済み
 - [x] JWT検証ロジック実装済み
 - [ ] Clerk設定（ユーザー作業）
 - [ ] 環境変数設定（ユーザー作業）
@@ -311,11 +368,15 @@ Clout Dashboardで一度ログインすれば全アプリにアクセス可能�
 
 | 日付 | 変更内容 |
 |------|---------|
+| 2026-02-03 | サイドバーナビゲーション整理（社員管理・管理者・変更履歴を削除） |
+| 2026-02-03 | ダーク/ライトモード切り替え機能追加 |
+| 2026-02-03 | ライトモードCSS追加（globals.css） |
+| 2026-02-03 | MainLayout テーマ切り替え対応 |
 | 2026-02-03 | ダークテーマ化（ModelCRM基準に統一） |
 | 2026-02-03 | サイドバーに他アプリリンク追加 |
 | 2026-02-03 | ブランド別アクセントカラー実装 |
 | 2026-02-03 | キャンペーン一覧に担当者列追加 |
-| 2026-02-03 | SSO認証基盤実装（clout-auth.ts） |
+| 2026-02-03 | SSO認証基盤実装（clout-auth.ts, middleware.ts） |
 | 2026-02-03 | DBマイグレーション適用確認 |
 | 2026-02-03 | Clout API連携環境変数設定 |
 | 2026-02-02 | ブランド分離機能実装 |
