@@ -32,7 +32,7 @@ interface ActivityLog {
   user_name: string;
   details: string;
   timestamp: string;
-  changes?: { field: string; old: any; new: any }[];
+  changes?: { field: string; old: unknown; new: unknown }[];
 }
 
 export default function AuditLogPage() {

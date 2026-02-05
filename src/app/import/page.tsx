@@ -158,8 +158,11 @@ export default function ImportPage() {
     }
   };
 
+  // Excelの生データセル型（文字列、数値、null）
+  type ExcelCellValue = string | number | boolean | null | undefined;
+
   // Excelファイルを生データとして読み込む
-  const readExcelFileRaw = (file: File): Promise<{ headers: string[]; data: any[][] }> => {
+  const readExcelFileRaw = (file: File): Promise<{ headers: string[]; data: ExcelCellValue[][] }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -175,7 +178,7 @@ export default function ImportPage() {
             defval: null,
             blankrows: false,
             raw: false, // 文字列として取得
-          }) as any[][];
+          }) as ExcelCellValue[][];
 
           if (jsonData.length === 0) {
             resolve({ headers: [], data: [] });
@@ -183,7 +186,7 @@ export default function ImportPage() {
           }
 
           // ヘッダー行（1行目）
-          const headers = (jsonData[0] || []).map((h: any) => {
+          const headers = (jsonData[0] || []).map((h: ExcelCellValue) => {
             if (h === null || h === undefined) return '';
             return String(h).trim();
           });
@@ -262,7 +265,7 @@ export default function ImportPage() {
   };
 
   // マッピングに基づいてデータを変換
-  const mapDataWithColumns = (rawData: any[][], mapping: Record<string, string>, headers: string[]): ImportRow[] => {
+  const mapDataWithColumns = (rawData: ExcelCellValue[][], mapping: Record<string, string>, headers: string[]): ImportRow[] => {
     const headerIndexMap: Record<string, number> = {};
 
     // ヘッダーインデックスを取得（引数のheadersを使用）
@@ -314,7 +317,7 @@ export default function ImportPage() {
     }).filter(Boolean) as ImportRow[];
   };
 
-  const parseDate = (value: any): string => {
+  const parseDate = (value: ExcelCellValue): string => {
     if (!value || value === '-' || value === '') return '';
 
     // Excel日付シリアル値の場合
@@ -380,7 +383,7 @@ export default function ImportPage() {
     return '';
   };
 
-  const parseNumber = (value: any): number => {
+  const parseNumber = (value: ExcelCellValue): number => {
     if (value == null || value === '') return 0;
     // カンマ、円記号、スペースを除去
     const cleaned = value.toString().replace(/[,\s¥￥$]/g, '');
@@ -636,10 +639,11 @@ export default function ImportPage() {
         }
 
         success++;
-      } catch (err: any) {
+      } catch (err) {
         failed++;
         const displayName = row.insta_name || row.tiktok_name || '不明';
-        errors.push(`${displayName}: ${err.message}`);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        errors.push(`${displayName}: ${errorMessage}`);
       }
 
       // プログレス更新

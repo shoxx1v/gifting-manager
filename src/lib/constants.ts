@@ -141,6 +141,33 @@ export const PAGINATION = {
   pageSizeOptions: [10, 20, 50, 100],
 };
 
+// ==================== インポート関連 ====================
+
+export const IMPORT_CONSTANTS = {
+  /** プレビュー表示行数 */
+  PREVIEW_ROW_LIMIT: 10,
+  /** エラー表示上限 */
+  ERROR_DISPLAY_LIMIT: 5,
+  /** Excel日付シリアル値のオフセット */
+  EXCEL_DATE_OFFSET: 25569,
+  /** Excel日付の1日のミリ秒 */
+  EXCEL_DAY_MS: 86400 * 1000,
+};
+
+// ==================== キャッシュ関連 ====================
+
+export const CACHE_CONSTANTS = {
+  /** ブランドキャッシュの有効期間（ミリ秒） */
+  BRAND_CACHE_DURATION_MS: 60 * 60 * 1000, // 1時間
+  /** React QueryのデフォルトstaleTime */
+  DEFAULT_STALE_TIME_MS: 2 * 60 * 1000, // 2分
+};
+
+// ==================== CSV/Excel関連 ====================
+
+/** UTF-8 BOM（CSVエクスポート用） */
+export const UTF8_BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+
 // ==================== その他の定数 ====================
 
 export const DEFAULT_SHIPPING_COST = 800;

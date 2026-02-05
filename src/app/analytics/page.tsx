@@ -163,7 +163,22 @@ export default function AnalyticsPage() {
     const { data: campaigns } = await query;
 
     // 比較期間のデータ取得
-    let previousCampaigns: any[] = [];
+    interface CampaignData {
+      id: string;
+      brand: string | null;
+      item_code: string | null;
+      status: string;
+      agreed_amount: number | null;
+      likes: number | null;
+      comments: number | null;
+      influencer?: {
+        id: string;
+        insta_name: string | null;
+        tiktok_name: string | null;
+      } | null;
+      created_at: string;
+    }
+    let previousCampaigns: CampaignData[] = [];
     if (previousStartDate && previousEndDate) {
       let prevQuery = supabase
         .from('campaigns')
@@ -185,7 +200,7 @@ export default function AnalyticsPage() {
       const agreedCampaigns = campaigns.filter(c => c.status === 'agree').length;
 
       // ブランド別集計
-      const brandMap = new Map<string, any>();
+      const brandMap = new Map<string, { spent: number; likes: number; comments: number; campaigns: number }>();
       campaigns.forEach(c => {
         const brand = c.brand || '未設定';
         const existing = brandMap.get(brand) || { spent: 0, likes: 0, comments: 0, campaigns: 0 };

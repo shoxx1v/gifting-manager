@@ -134,8 +134,9 @@ export default function StaffsPage() {
       setEditingStaff(null);
       setFormData({ name: '', email: '', team: 'TL', department: '', position: '' });
       fetchStaffs();
-    } catch (err: any) {
-      showToast('error', err.message || 'エラーが発生しました');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
+      showToast('error', errorMessage);
     } finally {
       setSaving(false);
     }

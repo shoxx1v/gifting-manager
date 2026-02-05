@@ -2,6 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useBrand } from '@/contexts/BrandContext';
 import { Campaign, Influencer, Staff } from '@/types';
+import {
+  calculateInfluencerScore,
+  calculateStatsFromCampaigns,
+  type InfluencerRank,
+} from '@/lib/scoring';
 
 // Query Keys
 export const queryKeys = {
@@ -167,52 +172,27 @@ export function useInfluencersWithScores() {
       // インフルエンサーごとにスコア計算
       return influencersData.map(inf => {
         const campaigns = campaignsData.filter(c => c.influencer_id === inf.id);
+
+        // 統計計算を一元化された関数で実行
+        const stats = calculateStatsFromCampaigns(campaigns);
         const totalCampaigns = campaigns.length;
-        const totalLikes = campaigns.reduce((sum, c) => sum + (c.likes || 0), 0);
-        const totalComments = campaigns.reduce((sum, c) => sum + (c.comments || 0), 0);
-        const totalSpent = campaigns.reduce((sum, c) => sum + (c.agreed_amount || 0), 0);
-        const costPerLike = totalLikes > 0 ? totalSpent / totalLikes : 0;
-        const avgLikes = totalCampaigns > 0 ? totalLikes / totalCampaigns : 0;
-        const avgEngagement = totalCampaigns > 0 ? (totalLikes + totalComments) / totalCampaigns : 0;
+        const avgEngagement = totalCampaigns > 0
+          ? (stats.totalLikes + stats.totalComments) / totalCampaigns
+          : 0;
 
-        // 検討コメント計算
-        const totalConsiderationComments = campaigns.reduce((sum, c) => sum + (c.consideration_comment || 0), 0);
-        const avgConsiderationComments = totalCampaigns > 0 ? totalConsiderationComments / totalCampaigns : 0;
-
-        // 納期遵守率
-        const campaignsWithDeadline = campaigns.filter(c => c.desired_post_date && c.post_date);
-        const onTimeCampaigns = campaignsWithDeadline.filter(c => {
-          const desired = new Date(c.desired_post_date!);
-          const actual = new Date(c.post_date!);
-          return actual <= desired;
-        });
-        const onTimeRate = campaignsWithDeadline.length > 0
-          ? (onTimeCampaigns.length / campaignsWithDeadline.length) * 100
-          : 100;
-
-        // スコア計算
+        // スコア計算を一元化された関数で実行
         let score = 0;
+        let rank: InfluencerRank = 'C';
         if (totalCampaigns > 0) {
-          const considerationScore = Math.min(100, (avgConsiderationComments / 50) * 100);
-          const engagementScore = Math.min(100, (avgLikes / 1000) * 100);
-          const efficiencyScore = costPerLike > 0
-            ? Math.max(0, Math.min(100, ((200 - costPerLike) / 150) * 100))
-            : 50;
-          const reliabilityScore = onTimeRate;
-
-          score = Math.round(
-            considerationScore * 0.40 +
-            engagementScore * 0.25 +
-            efficiencyScore * 0.20 +
-            reliabilityScore * 0.15
-          );
+          const scoreResult = calculateInfluencerScore({
+            avgConsiderationComments: stats.avgConsiderationComments,
+            avgLikes: stats.avgLikes,
+            costPerLike: stats.costPerLike,
+            onTimeRate: stats.onTimeRate,
+          });
+          score = scoreResult.totalScore;
+          rank = scoreResult.rank;
         }
-
-        // ランク判定
-        let rank = 'C';
-        if (score >= 75) rank = 'S';
-        else if (score >= 55) rank = 'A';
-        else if (score >= 35) rank = 'B';
 
         // 最終活動日
         const sortedCampaigns = [...campaigns].sort((a, b) =>
@@ -222,10 +202,10 @@ export function useInfluencersWithScores() {
         return {
           ...inf,
           totalCampaigns,
-          totalLikes,
-          totalComments,
-          totalSpent,
-          costPerLike,
+          totalLikes: stats.totalLikes,
+          totalComments: stats.totalComments,
+          totalSpent: stats.totalSpent,
+          costPerLike: stats.costPerLike,
           avgEngagement,
           score,
           rank,
@@ -493,34 +473,27 @@ export function useDashboardFullStats(selectedItem: string, dateRange: string) {
         }
       });
 
-      // インフルエンサーランキング計算
+      // インフルエンサーランキング計算（一元化されたスコア計算関数を使用）
       const influencerRanking = Array.from(influencerMap.values())
         .map((inf) => {
           const costPerLike = inf.total_likes > 0 ? inf.total_amount / inf.total_likes : 0;
           const avgLikes = inf.total_campaigns > 0 ? inf.total_likes / inf.total_campaigns : 0;
-          const avgConsiderationComments = inf.total_campaigns > 0 ? inf.total_consideration_comments / inf.total_campaigns : 0;
+          const avgConsiderationComments = inf.total_campaigns > 0
+            ? inf.total_consideration_comments / inf.total_campaigns
+            : 0;
 
           let score = 0;
+          let rank: InfluencerRank = 'C';
           if (inf.total_campaigns > 0) {
-            const considerationScore = Math.min(100, (avgConsiderationComments / 50) * 100);
-            const engagementScore = Math.min(100, (avgLikes / 1000) * 100);
-            const efficiencyScore = costPerLike > 0
-              ? Math.max(0, Math.min(100, ((200 - costPerLike) / 150) * 100))
-              : 50;
-            const reliabilityScore = 80;
-
-            score = Math.round(
-              considerationScore * 0.40 +
-              engagementScore * 0.25 +
-              efficiencyScore * 0.20 +
-              reliabilityScore * 0.15
-            );
+            const scoreResult = calculateInfluencerScore({
+              avgConsiderationComments,
+              avgLikes,
+              costPerLike,
+              // ダッシュボードでは納期遵守率のデータがないためデフォルト値を使用
+            });
+            score = scoreResult.totalScore;
+            rank = scoreResult.rank;
           }
-
-          let rank = 'C';
-          if (score >= 75) rank = 'S';
-          else if (score >= 55) rank = 'A';
-          else if (score >= 35) rank = 'B';
 
           return {
             ...inf,

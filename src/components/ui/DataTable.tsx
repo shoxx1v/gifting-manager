@@ -236,11 +236,14 @@ export function DataTable<TData, TValue>({
 }
 
 // ソート可能なヘッダーのヘルパー
-export function SortableHeader({
+export function SortableHeader<TData>({
   column,
   children,
 }: {
-  column: any;
+  column: {
+    getToggleSortingHandler: () => ((event: unknown) => void) | undefined;
+    getIsSorted: () => false | 'asc' | 'desc';
+  };
   children: React.ReactNode;
 }) {
   return (

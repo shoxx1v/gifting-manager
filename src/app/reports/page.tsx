@@ -32,17 +32,52 @@ interface ReportConfig {
   format: 'excel' | 'csv';
 }
 
+interface InfluencerSummary {
+  insta_name: string;
+  tiktok_name?: string;
+  followers?: number;
+  spent: number;
+  likes: number;
+  campaigns: number;
+}
+
+interface BrandSummary {
+  brand: string;
+  spent: number;
+  likes: number;
+  campaigns: number;
+  comments: number;
+}
+
+interface CampaignWithInfluencer {
+  id: string;
+  brand: string | null;
+  item_code: string | null;
+  status: string;
+  agreed_amount: number | null;
+  post_date: string | null;
+  likes: number | null;
+  comments: number | null;
+  post_url: string | null;
+  influencer: {
+    id: string;
+    insta_name: string | null;
+    tiktok_name: string | null;
+    followers?: number | null;
+  } | null;
+}
+
 interface ReportData {
-  campaigns: any[];
-  influencers: any[];
+  campaigns: CampaignWithInfluencer[];
+  influencers: { id: string; insta_name: string | null; tiktok_name: string | null }[];
   summary: {
     totalCampaigns: number;
     totalSpent: number;
     totalLikes: number;
     totalComments: number;
     avgCostPerLike: number;
-    topInfluencers: any[];
-    topBrands: any[];
+    topInfluencers: InfluencerSummary[];
+    topBrands: BrandSummary[];
   };
 }
 
@@ -109,7 +144,7 @@ export default function ReportsPage() {
     const totalComments = campaignList.reduce((sum, c) => sum + (c.comments || 0), 0);
 
     // トップインフルエンサー
-    const influencerMap = new Map<string, any>();
+    const influencerMap = new Map<string, InfluencerSummary>();
     campaignList.forEach(c => {
       if (c.influencer) {
         const displayName = c.influencer.insta_name || c.influencer.tiktok_name || '不明';
@@ -125,14 +160,15 @@ export default function ReportsPage() {
     });
 
     // トップブランド
-    const brandMap = new Map<string, any>();
+    const brandMap = new Map<string, BrandSummary>();
     campaignList.forEach(c => {
       const brand = c.brand || '未設定';
-      const existing = brandMap.get(brand) || { spent: 0, likes: 0, campaigns: 0 };
+      const existing = brandMap.get(brand) || { brand, spent: 0, likes: 0, campaigns: 0, comments: 0 };
       brandMap.set(brand, {
         brand,
         spent: existing.spent + (c.agreed_amount || 0),
         likes: existing.likes + (c.likes || 0),
+        comments: existing.comments + (c.comments || 0),
         campaigns: existing.campaigns + 1,
       });
     });
@@ -207,22 +243,29 @@ export default function ReportsPage() {
       csv += '【インフルエンサー別レポート】\n';
       csv += 'インスタ名,TikTok,フォロワー,案件数,総支出,総いいね,いいね単価\n';
 
-      const influencerStats = new Map<string, any>();
+      const influencerStats = new Map<string, InfluencerSummary & { id?: string }>();
       data.campaigns.forEach(c => {
         if (c.influencer) {
           const key = c.influencer.id;
-          const existing = influencerStats.get(key) || {
-            ...c.influencer,
-            campaigns: 0,
-            spent: 0,
-            likes: 0,
-          };
-          influencerStats.set(key, {
-            ...existing,
-            campaigns: existing.campaigns + 1,
-            spent: existing.spent + (c.agreed_amount || 0),
-            likes: existing.likes + (c.likes || 0),
-          });
+          const existing = influencerStats.get(key);
+          if (existing) {
+            influencerStats.set(key, {
+              ...existing,
+              campaigns: existing.campaigns + 1,
+              spent: existing.spent + (c.agreed_amount || 0),
+              likes: existing.likes + (c.likes || 0),
+            });
+          } else {
+            influencerStats.set(key, {
+              id: c.influencer.id,
+              insta_name: c.influencer.insta_name || '',
+              tiktok_name: c.influencer.tiktok_name || undefined,
+              followers: c.influencer.followers || undefined,
+              campaigns: 1,
+              spent: c.agreed_amount || 0,
+              likes: c.likes || 0,
+            });
+          }
         }
       });
 
@@ -239,7 +282,7 @@ export default function ReportsPage() {
       csv += '【ブランド別レポート】\n';
       csv += 'ブランド,案件数,総支出,総いいね,総コメント,いいね単価,エンゲージメント率\n';
 
-      const brandStats = new Map<string, any>();
+      const brandStats = new Map<string, BrandSummary>();
       data.campaigns.forEach(c => {
         const brand = c.brand || '未設定';
         const existing = brandStats.get(brand) || { campaigns: 0, spent: 0, likes: 0, comments: 0 };
