@@ -52,22 +52,33 @@ export default function BulkInputPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
 
+  // インフルエンサー情報の型
+  type InfluencerInfo = {
+    insta_name?: string | null;
+    tiktok_name?: string | null;
+    insta_url?: string | null;
+    tiktok_url?: string | null;
+  } | null;
+
   // 案件データを編集可能な行に変換
   useEffect(() => {
     if (campaigns) {
       const editableRows: EditableRow[] = campaigns
         .filter((c) => c.status === 'agree' || c.status === 'pending')
-        .map((c) => ({
-          id: c.id,
-          influencer_username: (c.influencer as any)?.insta_name || (c.influencer as any)?.tiktok_name || '不明',
-          platform: (c.influencer as any)?.insta_url ? 'instagram' : (c.influencer as any)?.tiktok_url ? 'tiktok' : '',
-          product: c.item_code || '',
-          current_likes: c.likes || 0,
-          current_comments: c.comments || 0,
-          new_likes: '',
-          new_comments: '',
-          hasChanges: false,
-        }));
+        .map((c) => {
+          const influencer = c.influencer as InfluencerInfo;
+          return {
+            id: c.id,
+            influencer_username: influencer?.insta_name || influencer?.tiktok_name || '不明',
+            platform: influencer?.insta_url ? 'instagram' : influencer?.tiktok_url ? 'tiktok' : '',
+            product: c.item_code || '',
+            current_likes: c.likes || 0,
+            current_comments: c.comments || 0,
+            new_likes: '',
+            new_comments: '',
+            hasChanges: false,
+          };
+        });
       setRows(editableRows);
     }
   }, [campaigns]);

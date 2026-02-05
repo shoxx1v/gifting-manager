@@ -263,8 +263,10 @@ export default function CampaignsPage() {
     totalLikes: filteredCampaigns.reduce((sum, c) => sum + (c.likes || 0), 0),
   };
 
-  // BE専用: 国別海外発送統計
-  const internationalStats = currentBrand === 'BE' ? (() => {
+  // BE専用: 国別海外発送統計（useMemoで最適化）
+  const internationalStats = useMemo(() => {
+    if (currentBrand !== 'BE') return null;
+
     const internationalCampaigns = filteredCampaigns.filter(c => c.is_international_shipping);
     const countryMap = new Map<string, { count: number; cost: number; likes: number }>();
 
@@ -285,7 +287,7 @@ export default function CampaignsPage() {
         .map(([country, data]) => ({ country, ...data }))
         .sort((a, b) => b.count - a.count),
     };
-  })() : null;
+  }, [currentBrand, filteredCampaigns]);
 
   if (authLoading) {
     return <LoadingSpinner fullScreen message="認証中..." />;

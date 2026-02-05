@@ -1,9 +1,9 @@
-// 管理者メールアドレス
-export const ADMIN_EMAILS = [
-  'taishi.sawada@clout.co.jp',
-  'hideaki.kudo@clout.co.jp',
-  's@clout.co.jp',
-];
+// 管理者メールアドレス（環境変数から取得、フォールバック付き）
+const DEFAULT_ADMIN_EMAILS = ['taishi.sawada@clout.co.jp', 'hideaki.kudo@clout.co.jp', 's@clout.co.jp'];
+export const ADMIN_EMAILS: string[] =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ADMIN_EMAILS)
+    ? process.env.NEXT_PUBLIC_ADMIN_EMAILS.split(',').map(e => e.trim()).filter(Boolean)
+    : DEFAULT_ADMIN_EMAILS;
 
 // チーム種別
 export type TeamType = 'TL' | 'BE' | 'AM' | 'ADMIN';

@@ -563,6 +563,70 @@ export function useDashboardFullStats(selectedItem: string, dateRange: string) {
   });
 }
 
+// ==================== Item Codes ====================
+
+export function useItemCodes() {
+  const { currentBrand } = useBrand();
+
+  return useQuery({
+    queryKey: ['itemCodes', currentBrand],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('item_code')
+        .eq('brand', currentBrand)
+        .not('item_code', 'is', null);
+
+      if (error) throw error;
+
+      // ユニークな品番リストを返す
+      const uniqueCodes = Array.from(new Set(
+        data?.map(c => c.item_code).filter(Boolean) || []
+      )).sort();
+
+      return uniqueCodes as string[];
+    },
+    staleTime: 10 * 60 * 1000, // 10分（品番はあまり変わらない）
+  });
+}
+
+// ==================== Influencer Past Stats ====================
+
+export function useInfluencerPastStats(influencerId: string | null) {
+  const { currentBrand } = useBrand();
+
+  return useQuery({
+    queryKey: ['influencerPastStats', currentBrand, influencerId],
+    queryFn: async () => {
+      if (!influencerId) return null;
+
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('offered_amount, agreed_amount, likes, comments')
+        .eq('influencer_id', influencerId)
+        .eq('brand', currentBrand)
+        .not('agreed_amount', 'is', null);
+
+      if (error) throw error;
+      if (!data || data.length === 0) return null;
+
+      // 過去の平均値を計算
+      const avgOffered = data.reduce((sum, c) => sum + (c.offered_amount || 0), 0) / data.length;
+      const avgAgreed = data.reduce((sum, c) => sum + (c.agreed_amount || 0), 0) / data.length;
+      const avgLikes = data.reduce((sum, c) => sum + (c.likes || 0), 0) / data.length;
+
+      return {
+        avgOfferedAmount: Math.round(avgOffered),
+        avgAgreedAmount: Math.round(avgAgreed),
+        avgLikes: Math.round(avgLikes),
+        totalCampaigns: data.length,
+      };
+    },
+    enabled: !!influencerId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 // ==================== Bulk Operations ====================
 
 export function useBulkUpdateCampaigns() {

@@ -9,6 +9,9 @@ import TagInput, { SUGGESTED_TAGS } from '@/components/ui/TagInput';
 import QuickTemplates, { QuickAmountButtons, QuickDateButtons } from '@/components/ui/QuickTemplates';
 import { useBrand } from '@/contexts/BrandContext';
 import { useToast, translateError } from '@/lib/toast';
+import { validateCampaignForm, getFieldError } from '@/lib/validation';
+import { calculatePostStatus, suggestPostDate } from '@/lib/post-status';
+import { useInfluencerPastStats } from '@/hooks/useQueries';
 
 interface CampaignModalProps {
   campaign: Campaign | null;
@@ -107,6 +110,11 @@ export default function CampaignModal({
     fetchStaffs();
   }, []);
 
+  // 過去相場データを取得（新規案件時のみ）
+  const { data: pastStats } = useInfluencerPastStats(
+    !campaign ? formData.influencer_id : null
+  );
+
   // 新規インフルエンサー登録用の状態
   const [showNewInfluencer, setShowNewInfluencer] = useState(false);
   const [newInfluencerName, setNewInfluencerName] = useState('');
@@ -178,7 +186,7 @@ export default function CampaignModal({
       }
     };
     fetchNumberOfTimes();
-  }, [formData.influencer_id, currentBrand, campaign]);
+  }, [formData.influencer_id, currentBrand, campaign?.id]); // campaign?.id でオブジェクト参照を避ける
 
   // よくある海外発送先国リスト
   const COMMON_COUNTRIES = [
@@ -187,59 +195,12 @@ export default function CampaignModal({
   ];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState<{ field: string; message: string }[]>([]);
 
   // 投稿希望日の入力モード（single: 単一日, range: 期間）
   const [postDateMode, setPostDateMode] = useState<'single' | 'range'>(
     campaign?.desired_post_start && campaign?.desired_post_end ? 'range' : 'single'
   );
-
-  // 投稿ステータスを自動計算（詳細カテゴリ）
-  const calculatePostStatus = (saleDate: string, postDate: string, desiredDate: string, desiredStart: string, desiredEnd: string): string => {
-    if (!saleDate) return '';
-    if (postDate) return '投稿済み';
-
-    const sale = new Date(saleDate);
-    const targetDate = desiredDate ? new Date(desiredDate) :
-                       desiredStart ? new Date(desiredStart) : null;
-
-    if (!targetDate) return '';
-
-    // セール日からの日数差（マイナス = セール前、プラス = セール後）
-    const daysDiff = Math.floor((targetDate.getTime() - sale.getTime()) / (1000 * 60 * 60 * 24));
-
-    // セール前
-    if (daysDiff < 0) {
-      if (daysDiff >= -7) {
-        return 'セール1週間前';
-      } else if (daysDiff >= -14) {
-        return 'セール2週間前';
-      } else {
-        return 'セール2週間以上前';
-      }
-    }
-
-    // セール当日
-    if (daysDiff === 0) {
-      return 'セール当日';
-    }
-
-    // セール後
-    if (daysDiff <= 3) {
-      return 'セール3日以内';
-    } else if (daysDiff <= 7) {
-      return 'セール1週間以内';
-    } else if (daysDiff <= 14) {
-      return 'セール2週間以内';
-    } else if (daysDiff <= 21) {
-      return 'セール3週間以内';
-    } else if (daysDiff <= 30) {
-      return 'セール1ヶ月以内';
-    } else if (daysDiff <= 60) {
-      return 'セール2ヶ月以内';
-    } else {
-      return 'セール2ヶ月以上後';
-    }
-  };
 
   // コメント機能用の状態
   const [newComment, setNewComment] = useState('');
@@ -264,6 +225,21 @@ export default function CampaignModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationErrors([]);
+
+    // バリデーション実行
+    const validation = validateCampaignForm(formData, {
+      isInternationalShipping: formData.is_international_shipping,
+      postDateMode,
+    });
+
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors);
+      setError(validation.errors.map(e => e.message).join('、'));
+      showToast('error', '入力内容を確認してください');
+      return;
+    }
+
     setLoading(true);
     setError('');
 

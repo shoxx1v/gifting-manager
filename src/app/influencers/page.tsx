@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Influencer } from '@/types';
+import { Influencer, InfluencerWithScore } from '@/types';
 import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast, translateError } from '@/lib/toast';
@@ -29,18 +29,6 @@ import {
 import InfluencerModal from '@/components/forms/InfluencerModal';
 import { useInfluencersWithScores } from '@/hooks/useQueries';
 import { useQueryClient } from '@tanstack/react-query';
-
-interface InfluencerWithScore extends Influencer {
-  totalCampaigns: number;
-  totalLikes: number;
-  totalComments: number;
-  totalSpent: number;
-  costPerLike: number;
-  avgEngagement: number;
-  score: number;
-  rank: string;
-  lastActivity?: string;
-}
 
 export default function InfluencersPage() {
   const { user, loading: authLoading } = useAuth();
