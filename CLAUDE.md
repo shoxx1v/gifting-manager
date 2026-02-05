@@ -150,6 +150,33 @@ const response = await fetch(`${apiUrl}/api/master/brands`, {
   - PreviewTable: プレビューテーブル
   - ImportResult: インポート結果表示
 
+#### Phase 9: コード品質改善（2026-02-04）
+- [x] **console.log削除**
+  - 開発用デバッグログを削除（41件→0件）
+  - エラーハンドリング用console.errorは残置
+- [x] **型定義統合**
+  - `types/index.ts` に `InfluencerWithScore` 型追加
+  - スコア付きインフルエンサーの型定義を一元化
+- [x] **定数ファイル作成**
+  - `lib/constants.ts` 新規作成
+  - ステータス定義、ランク定義、ブランド定義を集約
+  - チャートカラー、スコア計算定数を一元化
+- [x] **エラーハンドリングユーティリティ**
+  - `lib/error-handler.ts` 新規作成
+  - AppErrorクラス、parseSupabaseError関数
+  - withRetry、withErrorHandling ユーティリティ
+- [x] **アクセシビリティ改善**
+  - `components/ui/AccessibleComponents.tsx` 新規作成
+  - ARIA属性付きButton, Input, Select コンポーネント
+  - Modal, Alert, LoadingState コンポーネント
+  - VisuallyHidden, SkipLink ユーティリティ
+- [x] **合意額自動入力機能**
+  - CampaignModal: 提示額入力時に合意額へ自動コピー
+  - 合意額が未入力の場合のみ動作
+- [x] **ボタンスタイル統一**
+  - globals.css: btn-sm, btn-lg サイズバリエーション追加
+  - btn-loading ローディング状態スタイル追加
+
 ---
 
 ### 🔄 残りのタスク
@@ -260,6 +287,7 @@ s@clout.co.jp
 | 投稿日自動設定 | 投稿URL入力 | 当日日付を自動入力（未設定時のみ） |
 | ステータス自動変更 | いいね数入力（>0） | 「保留」→「合意」に自動変更 |
 | インフルエンサー追加 | +ボタンクリック | モーダル内で即時登録・選択 |
+| 合意額自動入力 | 提示額入力 | 合意額が空の場合、提示額を自動コピー |
 
 ---
 
@@ -313,6 +341,13 @@ s@clout.co.jp
 | ファイル | 説明 |
 |---------|------|
 | `/src/components/ui/DataTable.tsx` | 汎用データテーブル（ソート・ページネーション） |
+| `/src/components/ui/AccessibleComponents.tsx` | ARIA対応UIコンポーネント（Button, Input, Select, Modal, Alert） |
+
+### ユーティリティ
+| ファイル | 説明 |
+|---------|------|
+| `/src/lib/constants.ts` | 定数定義（ステータス、ランク、カラー） |
+| `/src/lib/error-handler.ts` | エラーハンドリングユーティリティ |
 
 ### フォーム
 | ファイル | 説明 |
@@ -412,6 +447,7 @@ Clout Dashboardで一度ログインすれば全アプリにアクセス可能�
 
 | 日付 | 変更内容 |
 |------|---------|
+| 2026-02-04 | コード品質改善（console.log削除、型定義統合、constants.ts、error-handler.ts、アクセシビリティ、合意額自動入力） |
 | 2026-02-04 | React Query統合（campaigns/influencers/dashboard）、useQueries.tsフィールド修正、import/page.tsxコンポーネント分割 |
 | 2026-02-03 | React Query導入、一括入力ページ追加、DataTableコンポーネント作成 |
 | 2026-02-03 | サイドバーナビゲーション整理（社員管理・管理者・変更履歴を削除） |

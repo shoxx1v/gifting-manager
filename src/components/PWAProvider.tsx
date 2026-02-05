@@ -19,11 +19,8 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
-        .then((registration) => {
-          console.log('Service Worker registered:', registration.scope);
-        })
-        .catch((error) => {
-          console.error('Service Worker registration failed:', error);
+        .catch(() => {
+          // Service Worker registration failed
         });
     }
 
@@ -66,9 +63,7 @@ export default function PWAProvider({ children }: { children: React.ReactNode })
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
 
-    if (outcome === 'accepted') {
-      console.log('PWA installed');
-    }
+    // PWA installed or dismissed
 
     setDeferredPrompt(null);
     setShowInstallBanner(false);

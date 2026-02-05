@@ -25,8 +25,6 @@ export default function ForceRelogin({ children }: { children: React.ReactNode }
 
       // バージョンが異なる場合は強制ログアウト
       if (storedVersion !== SESSION_VERSION) {
-        console.log('Session version mismatch, forcing re-login...');
-
         // ブランド選択をクリア（BrandContextで使用しているキー）
         localStorage.removeItem('selectedBrand');
         localStorage.removeItem('brandSelected');

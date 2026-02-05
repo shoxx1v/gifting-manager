@@ -131,6 +131,20 @@ html {
            active:scale-[0.98] transform;
   }
 
+  /* ボタンサイズバリエーション */
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm rounded-lg;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg rounded-2xl;
+  }
+
+  /* ボタン - ローディング状態 */
+  .btn-loading {
+    @apply relative pointer-events-none opacity-70;
+  }
+
   /* 入力フィールド */
   .input-field {
     @apply w-full px-4 py-3 border border-[oklch(0.35_0_0)] rounded-xl

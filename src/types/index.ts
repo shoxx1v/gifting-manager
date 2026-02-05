@@ -277,3 +277,16 @@ export interface CalendarEvent {
   influencer_name?: string;
   color?: string;
 }
+
+// インフルエンサー（スコア付き）
+export interface InfluencerWithScore extends Influencer {
+  totalCampaigns: number;
+  totalLikes: number;
+  totalComments: number;
+  totalSpent: number;
+  costPerLike: number;
+  avgEngagement: number;
+  score: number;
+  rank: 'S' | 'A' | 'B' | 'C';
+  lastActivity?: string;
+}

@@ -702,12 +702,20 @@ export default function CampaignModal({
                 <input
                   type="number"
                   value={formData.offered_amount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, offered_amount: parseFloat(e.target.value) || 0 })
-                  }
+                  onChange={(e) => {
+                    const newOffered = parseFloat(e.target.value) || 0;
+                    // 合意額が未入力の場合は提示額を自動コピー
+                    const updates: Partial<CampaignFormData> = { offered_amount: newOffered };
+                    if (formData.agreed_amount === 0 && newOffered > 0) {
+                      updates.agreed_amount = newOffered;
+                    }
+                    setFormData({ ...formData, ...updates });
+                  }}
                   className="input-field"
                   min={0}
+                  aria-label="提示額"
                 />
+                <p className="text-xs text-gray-500 mt-1">※合意額が空の場合、自動でコピー</p>
               </div>
 
               <div>
@@ -722,6 +730,7 @@ export default function CampaignModal({
                   }
                   className="input-field"
                   min={0}
+                  aria-label="合意額"
                 />
                 <QuickAmountButtons
                   value={formData.agreed_amount}

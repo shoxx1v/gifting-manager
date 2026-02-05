@@ -121,15 +121,9 @@ export default function ImportPage() {
       const { headers, data } = await readExcelFileRaw(selectedFile);
       setDetectedHeaders(headers);
 
-      console.log('検出されたヘッダー:', headers);
-      console.log('データ行数:', data.length);
-      console.log('最初のデータ行:', data[0]);
-
       // 自動マッピングを試行
       const autoMapping = autoDetectMapping(headers);
       setColumnMapping(autoMapping);
-
-      console.log('自動マッピング結果:', autoMapping);
 
       // マッピングされなかったカラムを検出
       const mapped = new Set(Object.values(autoMapping));
@@ -140,8 +134,6 @@ export default function ImportPage() {
       const mappedData = mapDataWithColumns(data, autoMapping, headers);
       setAllData(mappedData);
       setPreviewData(mappedData.slice(0, 10));
-
-      console.log('変換後のデータ数:', mappedData.length);
 
       // 重複チェックを実行
       await checkDuplicates(mappedData);
@@ -159,8 +151,7 @@ export default function ImportPage() {
       if (unmapped.length > 0 || (!autoMapping['insta_name'] && !autoMapping['tiktok_name'])) {
         setShowMapping(true);
       }
-    } catch (error) {
-      console.error('ファイル読み込みエラー:', error);
+    } catch {
       showToast('error', 'ファイルの読み込みに失敗しました');
       setPreviewData([]);
       setAllData([]);
@@ -186,9 +177,6 @@ export default function ImportPage() {
             raw: false, // 文字列として取得
           }) as any[][];
 
-          console.log('Excelから読み取ったデータ:', jsonData);
-          console.log('行数:', jsonData.length);
-
           if (jsonData.length === 0) {
             resolve({ headers: [], data: [] });
             return;
@@ -207,15 +195,8 @@ export default function ImportPage() {
             return row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== '');
           });
 
-          console.log('検出されたヘッダー:', headers);
-          console.log('データ行数:', rows.length);
-          if (rows.length > 0) {
-            console.log('最初のデータ行:', rows[0]);
-          }
-
           resolve({ headers, data: rows });
         } catch (error) {
-          console.error('Excel読み込みエラー:', error);
           reject(error);
         }
       };
@@ -246,7 +227,6 @@ export default function ImportPage() {
           if (normalizedHeader === normalizedPattern || trimmedHeader === pattern) {
             mapping[field] = header;
             usedHeaders.add(header);
-            console.log(`完全一致: "${header}" → ${field}`);
             break;
           }
         }
@@ -271,7 +251,6 @@ export default function ImportPage() {
               normalizedPattern.includes(normalizedHeader)) {
             mapping[field] = header;
             usedHeaders.add(header);
-            console.log(`部分一致: "${header}" → ${field}`);
             break;
           }
         }
@@ -290,8 +269,6 @@ export default function ImportPage() {
     headers.forEach((header, index) => {
       headerIndexMap[header] = index;
     });
-
-    console.log('ヘッダーインデックスマップ:', headerIndexMap);
 
     // データをマッピング
     return rawData.map(row => {
@@ -486,8 +463,8 @@ export default function ImportPage() {
           }
         }
       }
-    } catch (error) {
-      console.error('重複チェックエラー:', error);
+    } catch {
+      // 重複チェックに失敗しても続行
     }
 
     setDuplicates({ inFile: inFileDuplicates, inDatabase: inDbDuplicates });
